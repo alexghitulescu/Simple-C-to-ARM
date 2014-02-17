@@ -21,10 +21,10 @@ apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
 
 instance Monad ST where
-      -- return :: a -ST a
+      -- return :: a -> ST a
       return x   = S (\s -> (x,s))
 
-      -- (>>=)  :: ST a -(a -ST b) -ST b
+      -- (>>=)  :: ST a -> (a -> ST b) -> ST b
       st >>= f   = S (\s -> let (x,s') = apply st s in apply (f x) s')
 
 -- The function that generates the fresh labels. It is of type ST showing that it has a hidden state. 

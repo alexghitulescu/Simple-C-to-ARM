@@ -8,6 +8,7 @@ module VMData (
 ) where
 
 import Interm
+import Data.Map
 
 -- Virtual machine
 -- ===============
@@ -18,6 +19,8 @@ type Mem              =  [(Name,Int)]
 
 type Code             =  [Inst]
 
+type Reg              =  Map String Int
+
 data Inst             =  ADDRESS Name
                       |  PUSH Int
                       |  PUSHV Name
@@ -26,6 +29,7 @@ data Inst             =  ADDRESS Name
                       |  JUMP Label
                       |  JUMPZ Label
                       |  LABEL Label
+                      |  ADD 
                       |  PRINT
                          deriving (Show, Eq)
 
