@@ -1,5 +1,13 @@
 
 
-if c == d then a = false else a = true fi
+if (c == d) 
+{ 
+	a = false    ;
+	a += false;
+}	
+else 
+{
+	a = true
+}
 
-
+while (a) { a = false; } 
