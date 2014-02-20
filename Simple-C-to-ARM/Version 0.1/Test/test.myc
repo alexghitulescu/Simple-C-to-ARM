@@ -1,0 +1,19 @@
+int a;
+int b;
+int c;
+int t;
+
+a = 1;
+b = 1;
+c = 20 - 2;
+
+while (c)
+{
+	t = b;
+	b = a + b;
+	a = t;
+	c = c - 1;
+}
+
+print (b);
+

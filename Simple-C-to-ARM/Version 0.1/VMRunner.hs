@@ -3,9 +3,9 @@ module VMRunner (
      exec
 ) where
 
-import Interm
-import VMData
-import VMCompiler
+import AST
+import VMInst
+import ASTCompiler
 import SampleProg
 
 exec :: Code -> Mem
@@ -33,7 +33,7 @@ remP           :: Eq a => a -> [(a,b)] -> [(a,b)]
 remP _ [    ]  = []
 remP n (x:xs)  = if (fst x) == n then xs else x : (remP n xs)
 
-compNr          :: Op -> Int -> Int -> Int
+compNr          :: Op -> Integer -> Integer -> Integer
 compNr Add m n  = m + n
 compNr Sub m n  = n - m
 compNr Mul m n  = m * n

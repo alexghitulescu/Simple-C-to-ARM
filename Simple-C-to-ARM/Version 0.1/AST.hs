@@ -1,5 +1,5 @@
 
-module Interm (
+module AST (
     Prog (..),
     Expr (..),
     Name (..),
@@ -20,11 +20,11 @@ data Prog             =  NewVar Name
                          deriving Show
 
 
-data Expr             =  Val Int | Var Name | App Op Expr Expr
+data Expr             =  Val Integer | Var Name | App Op Expr Expr
                          deriving Show
 
 
-type Name             =  Char
+type Name             =  String
 
 
 data Op               =  Add | Sub | Mul | Div

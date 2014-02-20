@@ -1,5 +1,5 @@
 
-module VMData (
+module VMInst (
     Stack (..),
     Mem   (..),
     Code  (..),
@@ -7,22 +7,19 @@ module VMData (
     Label (..)
 ) where
 
-import Interm
-import Data.Map
+import AST
 
 -- Virtual machine
 -- ===============
 
-type Stack            =  [Int]
+type Stack            =  [Integer]
 
-type Mem              =  [(Name,Int)]
+type Mem              =  [(Name, Integer)]
 
 type Code             =  [Inst]
 
-type Reg              =  Map String Int
-
 data Inst             =  ADDRESS Name
-                      |  PUSH Int
+                      |  PUSH Integer
                       |  PUSHV Name
                       |  POP Name
                       |  DO Op

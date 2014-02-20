@@ -1,10 +1,10 @@
 
-module VMCompiler (
+module ASTCompiler (
      comp
 ) where
 
-import Interm
-import VMData
+import AST
+import VMInst
 
 comp                            :: Prog -> Code
 comp p                          = fst $ runState (compprogM p) 0
