@@ -1,6 +1,8 @@
 
 module Main (
-     compile
+     --compile,
+     runInVM,
+     printInst
 ) where
 
 import AST
@@ -9,17 +11,22 @@ import CodeGen
 import VMRunner
 import SampleProg
 import ASTCompiler
+import VMInst
 
-compile            :: String -> IO()
+{-compile            :: String -> IO()
 compile fileName   = do prog <- parseFile fileName
-                        print "compilation successful\n"
+                        print "compilation successful"
                         progToFile prog
-                        print "code generation successful\n"
+                        print "code generation successful"
 
 compileToScreen          :: String -> IO()
 compileToScreen fileName = do prog <- parseFile fileName
-                              progToScreen prog
+                              progToScreen prog-}
 
 runInVM           :: String -> IO()
 runInVM fileName  = do prog <- parseFile fileName
-                       print ( exec (comp prog) )
+                       print ( execM (comp prog) )
+
+printInst           :: String -> IO()
+printInst fileName  = do prog <- parseFile fileName
+                         print (comp prog)

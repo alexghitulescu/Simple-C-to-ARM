@@ -10,14 +10,12 @@
  .balign 4 
  nr: .asciz "%d \n" 
  .balign 4 
- return: .word 0 
  .text 
  .global printf 
  .balign 4 
  .global main 
  main: 
- 	 ldr r1, addr_of_return 
- 	 str lr, [r1] 
+ 	 push {lr}  
   
  	 mov r1, #1 
  	 push {r1} 
@@ -93,12 +91,10 @@
  	 ldr r0, addr_of_nr 
  	 bl printf 
   
- 	 ldr lr, addr_of_return 
- 	 ldr lr, [lr] 
+ pop {lr}  
  	 bx lr 
   
  addr_of_nr : .word nr 
- addr_of_return : .word return 
   
  addr_t : .word var_t 
  addr_c : .word var_c 

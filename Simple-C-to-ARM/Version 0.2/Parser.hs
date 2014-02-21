@@ -10,12 +10,11 @@ import Text.Parsec.Token
 import Text.Parsec.Language
 import AST
 
---data Expr = Var String | Con Bool | Uno Unop Expr | Duo Duop Expr Expr deriving Show
---data Unop = Not deriving Show
---data Duop = And | Iff | Add | Sub | Mul deriving Show
---data Asgn = Nrm | Add1 deriving Show
---data Stmt = Asg Asgn String Expr | If Expr Stmt [(Expr, Stmt)] (Maybe Stmt) | While Expr Stmt | Seq [Stmt] deriving Show
---data Func = Stmt deriving Show
+types :: [String]
+types = ["int", "void"]
+
+conditional :: [String]
+conditional = ["if", "else", "while"]
 
 def = javaStyle{ commentStart = "/*"
               , commentEnd = "*/"
@@ -25,7 +24,7 @@ def = javaStyle{ commentStart = "/*"
               , identLetter = alphaNum <|> char '_'
               , opStart = oneOf "~&=:"
               , opLetter = oneOf "~&=:"
-              , reservedNames = ["true", "false", "if", "else", "while", "int", "print"]
+              , reservedNames = ["true", "false", "print"] ++ types ++ conditional
               , reservedOpNames = ["~", "&", "==", "=", "+=", "+", "-", "*"] 
               , caseSensitive = True
               }
@@ -37,13 +36,14 @@ TokenParser{ parens = m_parens
            , reserved = m_reserved
            , integer = m_integer
            , semi = m_semi
+           , commaSep = m_commaSep
            , whiteSpace = m_whiteSpace } = makeTokenParser def
 
 m_semiSep       :: Parser a -> Parser [a]
 m_semiSep stmt  = sepEndBy1 stmt (optional m_semi)
 
-exprparser :: Parser Expr
-exprparser = buildExpressionParser table term <?> "expression"
+exprParser :: Parser Expr
+exprParser = buildExpressionParser table term <?> "expression"
 table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
         , [Infix (m_reservedOp "&" >> return (Duo And)) AssocLeft]
         , [Infix (m_reservedOp "==" >> return (Duo Iff)) AssocLeft]
@@ -51,15 +51,15 @@ table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
         , [Infix (m_reservedOp "-" >> return (App Sub)) AssocLeft]
         , [Infix (m_reservedOp "*" >> return (App Mul)) AssocLeft]
         ]
-term = m_parens exprparser
+term = m_parens exprParser
        <|> fmap Var m_identifier
-       <|> (fmap Val m_integer)
+       <|> fmap Val m_integer
        <|> (m_reserved "true" >> return (Val 1))
        <|> (m_reserved "false" >> return (Val 0))
-
-asgnParser   :: String -> Parser Prog
+ 
+asgnParser   :: String -> Parser Stmt
 asgnParser v =     do { m_reservedOp "="
-                      ; e <- exprparser
+                      ; e <- exprParser
                       ; return (Assign v e)
                       }
                {-<|> do { m_reservedOp "+="
@@ -67,38 +67,70 @@ asgnParser v =     do { m_reservedOp "="
                       ; return (Asg Add1 v e)
                       }-}
 
-mainparser :: Parser Prog
-mainparser = m_whiteSpace >> stmtparser <* eof
+funcParser   :: String -> Parser Stmt
+funcParser v =    do { e <- m_parens ( m_commaSep exprParser )
+                     ; return (Apply v e)
+                     }
+                      
+stmtParser :: Parser Stmt
+stmtParser = fmap Seqn (m_semiSep stmt1)
     where
-      stmtparser :: Parser Prog
-      stmtparser = fmap Seqn (m_semiSep stmt1)
       stmt1 =     do { m_reserved "int"
                      ; v <- m_identifier
-                     ; return (NewVar v)
+                     ; return (LocalVar v)
                      }
               <|> do { v <- m_identifier
-                     ; asgnParser v
+                     ; choice [ try (asgnParser v) , try (funcParser v) ]
                      }
               <|> do { m_reserved "if"
-                     ; b <- m_parens exprparser
-                     ; p <- m_braces stmtparser
+                     ; b <- m_parens exprParser
+                     ; p <- m_braces stmtParser
                      ; m_reserved "else"
-                     ; q <- m_braces stmtparser
+                     ; q <- m_braces stmtParser
                      ; return (If b p q)
                      }
               <|> do { m_reserved "while"
-                     ; b <- m_parens exprparser
-                     ; p <- m_braces stmtparser
+                     ; b <- m_parens exprParser
+                     ; p <- m_braces stmtParser
                      ; return (While b p)
                      }
               <|> do { m_reserved "print"
-                     ; b <- m_parens exprparser
+                     ; b <- m_parens exprParser
                      ; return (Print b)
                      }
+                  
+
+                  
+mainParser :: Parser Prog
+mainParser = m_whiteSpace >> progParser <* eof
+    where
+      progParser :: Parser Prog
+      progParser = fmap PSeq (m_semiSep prog1)
+      prog1 =     do { try func
+                     }
+              <|> do { try decl
+                     }
+      decl =      do { m_reserved "int"
+                     ; v <- m_identifier
+                     ; m_semi
+                     ; return (GlobalVar v)
+                     }
+      func =      do { m_reserved "int"
+                     ; v <- m_identifier
+                     ; e <- m_parens ( m_commaSep args )
+                     ; p <- m_braces stmtParser
+                     ; return (Fun v e p)
+                     }
+      args =      do { m_reserved "int"
+                     ; v <- m_identifier
+                     ; return (v)
+                     }
+      
+      
 parseF :: String -> IO (Prog)
-parseF inp = case parse mainparser "" inp of
+parseF inp = case parse mainParser "" inp of
              { Left err ->  do { print err
-                               ; return (Seqn [])
+                               ; return (PSeq [])
                                }
              ; Right ans -> do { print "parse successful\n"
                                ; return ans
@@ -110,7 +142,7 @@ parseFile fileName = do file <- readFile fileName
                         parseF file  
 
 test :: String -> IO ()
-test inp = case parse mainparser "" inp of
+test inp = case parse mainParser "" inp of
              { Left err -> print err
              ; Right ans -> print ans
              }

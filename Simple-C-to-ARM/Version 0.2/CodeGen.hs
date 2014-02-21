@@ -52,12 +52,11 @@ toScreen (x:xs) = do  putStr x
 
 addMain       :: [String] -> [String]
 addMain x     = [".balign 4" ++ endl, "nr: .asciz \"%d \\n\"" ++ endl, ".balign 4" ++ endl,
-                      "return: .word 0" ++ endl, ".text" ++ endl, ".global printf" ++ endl, 
+                      ".text" ++ endl, ".global printf" ++ endl, 
                       ".balign 4" ++ endl, ".global main" ++ endl, "main:" ++ endl, 
-                      "\t ldr r1, addr_of_return" ++ endl, "\t str lr, [r1]" ++ endl, endl] 
-                      ++ x ++ [endl ,"\t ldr lr, addr_of_return" ++ endl, "\t ldr lr, [lr]" 
-                      ++ endl, "\t bx lr" ++ endl, endl, "addr_of_nr : .word nr" ++ endl,
-                      "addr_of_return : .word return" ++ endl, endl]
+                      "\t push {lr} " ++ endl, endl] 
+                      ++ x ++ [endl , "pop {lr} " ++ endl, 
+                      "\t bx lr" ++ endl, endl, "addr_of_nr : .word nr" ++ endl, endl]
 
 addVars                       :: Code -> [String] -> [String]
 addVars _                []   = []

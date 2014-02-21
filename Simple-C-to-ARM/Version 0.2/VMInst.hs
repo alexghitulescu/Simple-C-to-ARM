@@ -1,10 +1,10 @@
 
 module VMInst (
-    Stack (..),
-    Mem   (..),
-    Code  (..),
-    Inst  (..),
-    Label (..)
+    Stack  (..),
+    Mem    (..),
+    Code   (..),
+    Inst   (..),
+    Label  (..)
 ) where
 
 import AST
@@ -25,9 +25,12 @@ data Inst             =  ADDRESS Name
                       |  DO Op
                       |  JUMP Label
                       |  JUMPZ Label
+                      |  JUMPS Name
                       |  LABEL Label
-                      |  ADD 
+                      |  LABELS Name
                       |  PRINT
+                      |  POPB
+                      |  HALT
                          deriving (Show, Eq)
 
-type Label            =  Int
+type Label            =  Integer

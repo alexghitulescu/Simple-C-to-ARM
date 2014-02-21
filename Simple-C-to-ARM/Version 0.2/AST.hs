@@ -1,6 +1,7 @@
 
 module AST (
     Prog (..),
+    Stmt (..),
     Expr (..),
     Name (..),
     Op   (..)
@@ -11,12 +12,18 @@ module AST (
 
 -- Basic declarations for the language:
 
-data Prog             =  NewVar Name  
+data Prog             =  GlobalVar Name
+                      |  Fun Name [Name] Stmt
+                      |  PSeq [Prog]
+                         deriving Show
+
+data Stmt             =  LocalVar Name  
                       |  Assign Name Expr
-                      |  If Expr Prog Prog
-                      |  While Expr Prog
-                      |  Seqn [Prog]
+                      |  If Expr Stmt Stmt
+                      |  While Expr Stmt
+                      |  Seqn [Stmt]
                       |  Print Expr
+                      |  Apply Name [Expr]
                          deriving Show
 
 
