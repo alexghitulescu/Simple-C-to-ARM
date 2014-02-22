@@ -4,7 +4,9 @@ module VMInst (
     Mem    (..),
     Code   (..),
     Inst   (..),
-    Label  (..)
+    Label  (..),
+    Reg    (..),
+    Cond   (..)
 ) where
 
 import AST
@@ -23,14 +25,21 @@ data Inst             =  ADDRESS Name
                       |  PUSHV Name
                       |  POP Name
                       |  DO Op
-                      |  JUMP Label
-                      |  JUMPZ Label
-                      |  JUMPS Name
+                      |  BX Cond Label
+                      |  BXL Cond Label
+                      |  B Cond Name
+                      |  BL Cond Name
                       |  LABEL Label
                       |  LABELS Name
                       |  PRINT
-                      |  POPB
                       |  HALT
+                      |  LDR Reg Reg Integer
+                      |  LDRV Reg Integer
+                      |  CMP Reg Reg
                          deriving (Show, Eq)
 
+data Reg              = SB | PC | LR | SP | R Name
+
+data Cond             = EQ | NE | GT | LT | GE | LE | NONE
+                         
 type Label            =  Integer

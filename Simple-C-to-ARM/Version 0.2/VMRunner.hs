@@ -9,7 +9,7 @@ import ASTCompiler
 import SampleProg
 
 execM                            :: Code -> State
-execM c                          = fst $ runState (execCode c) (elemIndex 0 (LABELS "main") c, [], [1000000])
+execM c                          = fst $ runState (execCode c) (elemIndex 0 (LABELS "main") c, 0, 0, [], [1000000], NONE)
 
 -- State Monad 
 -- ===========
@@ -17,7 +17,7 @@ execM c                          = fst $ runState (execCode c) (elemIndex 0 (LAB
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Integer, Mem, Stack)
+type State    = (Integer, Integer, Integer, Mem, Stack, Cond)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -35,37 +35,40 @@ instance Monad ST where
 --fresh         =  S (\n -> (n, n+1))
 
 next          :: ST ()
-next          =  S (\(pc, m, s) -> ((), (pc + 1, m, s)))
+next          =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc + 1, sb, lr, m, s, cflag)))
 
 nothing       :: ST ()
-nothing       =  S (\(pc, m, s) -> ((), (pc, m, s)))
+nothing       =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, s, cflag)))
 
 pop           :: ST Integer
-pop           =  S (\(pc, m, h:s) -> (h, (pc, m, s)))
+pop           =  S (\(pc, sb, lr, m, h:s, cflag) -> (h, (pc, sb, lr, m, s, cflag)))
 
 push          :: Integer -> ST ()
-push i        =  S (\(pc, m, s) -> ((), (pc, m, i:s)))  
+push i        =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, i:s, cflag)))  
 
 pushV         :: Name -> ST ()
-pushV n       =  S (\(pc, m, s) -> ((), (pc, m, find n m : s)))
+pushV n       =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, find n m : s, cflag)))
 
 put           :: (Name, Integer) -> ST ()
-put (n, i)    =  S (\(pc, m, s) -> ((), (pc, (n, i):(remP n m), s)))
+put (n, i)    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, (n, i):(remP n m), s, cflag)))
 
 retrieve      :: Code -> ST Inst
-retrieve c    =  S (\(pc, m, s) -> (if pc < toInteger(length c) then c !! fromInteger(pc) else HALT, (pc, m, s)))
+retrieve c    =  S (\(pc, sb, lr, m, s, cflag) -> (if pc < toInteger(length c) then c !! fromInteger(pc) else HALT, (pc, sb, lr, m, s, cflag)))
 
 jump          :: Code -> Label -> ST ()
-jump c l      =  S (\(pc, m, s) -> ((), (elemIndex 0 (LABEL l) c, m, s)))
+jump c l      =  S (\(pc, sb, lr, m, s, cflag) -> ((), (elemIndex 0 (LABEL l) c, sb, lr, m, s, cflag)))
 
 jumpS         :: Code -> Name -> ST ()
-jumpS c n     =  S (\(pc, m, s) -> ((), (elemIndex 0 (LABELS n) c, m, s)))
+jumpS c n     =  S (\(pc, sb, lr, m, s, cflag) -> ((), (elemIndex 0 (LABELS n) c, sb, lr, m, s, cflag)))
 
 mem           :: ST Mem
-mem           =  S (\(pc, m, s) -> (m, (pc, m, s)))
+mem           =  S (\(pc, sb, lr, m, s, cflag) -> (m, (pc, sb, lr, m, s, cflag)))
 
 state         :: ST State
-state         =  S (\(pc, m, s) -> ((pc, m, s), (pc, m, s)))
+state         =  S (\(pc, sb, lr, m, s, cflag) -> ((pc, sb, lr, m, s, cflag), (pc, sb, lr, m, s, cflag)))
+
+savePCToLR    :: ST ()
+savePCToLR    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, pc, m, s, cflag)))
 
 execCode        :: Code -> ST State
 execCode c      = do inst <- retrieve c
@@ -103,7 +106,8 @@ execCode c      = do inst <- retrieve c
                                   (HALT)      -> do s <- state
                                                     return s
 
-                                    
+
+                                                    
 find          :: Eq a => a -> [(a,b)] -> b
 find n (x:xs) = if n == (fst x) then (snd x) else find n xs 
 
