@@ -3,13 +3,14 @@ module VMRunner (
      execM
 ) where
 
+import Prelude hiding (EQ, LT, GT, compare)
 import AST
 import VMInst
 import ASTCompiler
 import SampleProg
 
 execM                            :: Code -> State
-execM c                          = fst $ runState (execCode c) (elemIndex 0 (LABELS "main") c, 0, 0, [], [1000000], NONE)
+execM c                          = fst $ runState (execCode c) (elemIndex 0 (LABELS "main") c, 0, 0, [], [1000000], NONE')
 
 -- State Monad 
 -- ===========
@@ -17,7 +18,7 @@ execM c                          = fst $ runState (execCode c) (elemIndex 0 (LAB
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Integer, Integer, Integer, Mem, Stack, Cond)
+type State    = (Integer, Integer, Integer, Mem, Stack, CFlag)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -61,6 +62,9 @@ jump c l      =  S (\(pc, sb, lr, m, s, cflag) -> ((), (elemIndex 0 (LABEL l) c,
 jumpS         :: Code -> Name -> ST ()
 jumpS c n     =  S (\(pc, sb, lr, m, s, cflag) -> ((), (elemIndex 0 (LABELS n) c, sb, lr, m, s, cflag)))
 
+jumpI          :: Code -> Integer -> ST ()
+jumpI c i      =  S (\(pc, sb, lr, m, s, cflag) -> ((), (i, sb, lr, m, s, cflag)))
+
 mem           :: ST Mem
 mem           =  S (\(pc, sb, lr, m, s, cflag) -> (m, (pc, sb, lr, m, s, cflag)))
 
@@ -70,44 +74,122 @@ state         =  S (\(pc, sb, lr, m, s, cflag) -> ((pc, sb, lr, m, s, cflag), (p
 savePCToLR    :: ST ()
 savePCToLR    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, pc, m, s, cflag)))
 
+setCflag      :: CFlag -> ST ()
+setCflag flag =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, s, flag)))
+
+validCflag    :: Cond -> ST Bool
+validCflag cf =  S (\(pc, sb, lr, m, s, cflag) -> (compareCF cflag cf, (pc, sb, lr, m, s, cflag)))
+
+getRegVal       :: Reg -> ST Integer
+getRegVal SB    =  S (\(pc, sb, lr, m, s, cflag) -> (sb, (pc, sb, lr, m, s, cflag)))
+getRegVal PC    =  S (\(pc, sb, lr, m, s, cflag) -> (pc, (pc, sb, lr, m, s, cflag)))
+getRegVal LR    =  S (\(pc, sb, lr, m, s, cflag) -> (lr, (pc, sb, lr, m, s, cflag)))
+getRegVal SP    =  S (\(pc, sb, lr, m, s, cflag) -> (toInteger(length s), (pc, sb, lr, m, s, cflag)))
+getRegVal (R n) =  S (\(pc, sb, lr, m, s, cflag) -> (find n m, (pc, sb, lr, m, s, cflag)))
+
+setRegVal         :: Reg -> Integer -> ST ()
+setRegVal SB i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, i, lr, m, s, cflag)))
+setRegVal PC i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (i, sb, lr, m, s, cflag)))
+setRegVal LR i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, i, m, s, cflag)))
+setRegVal SP i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, setStackSize i s, cflag)))
+setRegVal (R n) i =  put (n, i)
+
+
 execCode        :: Code -> ST State
 execCode c      = do inst <- retrieve c
                      next
-                     case inst of (PUSH i)    -> do push i
-                                                    execCode c
-                                  (PUSHV n)   -> do pushV n
-                                                    execCode c
-                                  (POP n)     -> do val <- pop
-                                                    put (n, val)
-                                                    execCode c
-                                  (DO op)     -> do val1 <- pop
-                                                    val2 <- pop
-                                                    push (compNr op val1 val2)
-                                                    execCode c
-                                  (JUMP l)    -> do jump c l
-                                                    execCode c
-                                  (JUMPZ l)   -> do val <- pop
-                                                    if val == 0 then 
-                                                       jump c l
-                                                    else
-                                                       nothing
-                                                    execCode c
-                                  (LABEL l)   -> execCode c
-                                  (ADDRESS n) -> do put (n, 0)
-                                                    execCode c
-                                  (PRINT)     -> do pop
-                                                    execCode c
-                                  (LABELS n)  -> execCode c
-                                  (JUMPS n)   -> do jumpS c n
-                                                    execCode c
-                                  (POPB)      -> do addr <- pop
-                                                    jump c addr
-                                                    execCode c
-                                  (HALT)      -> do s <- state
-                                                    return s
+                     case inst of (PUSH i)        -> do push i
+                                                        execCode c
+                                  (PUSHV n)       -> do pushV n
+                                                        execCode c
+                                  (POP n)         -> do val <- pop
+                                                        put (n, val)
+                                                        execCode c
+                                  (DO op)         -> do val1 <- pop
+                                                        val2 <- pop
+                                                        push (compNr op val1 val2)
+                                                        execCode c
+                                  (BX cond l)     -> execInstBX c cond l
+                                  (BXL cond l)    -> do savePCToLR
+                                                        execInstBX c cond l
+                                  (B cond n)      -> execInstB c cond n
+                                  (BL cond n)     -> do savePCToLR
+                                                        execInstB c cond n
+                                  (LABEL l)       -> execCode c
+                                  (ADDRESS n)     -> do put (n, 0)
+                                                        execCode c
+                                  (PRINT)         -> do pop
+                                                        execCode c
+                                  (LABELS n)      -> execCode c
+                                  (HALT)          -> do s <- state
+                                                        return s
+                                  (LDR r1 r2 i)   -> do r2val <- getRegVal r2
+                                                        setRegVal r1 (r2val + i)
+                                                        execCode c
+                                  (LDRV r i)      -> do setRegVal r i
+                                                        execCode c
+                                  (CMP r1 r2)     -> do r1val <- getRegVal r1
+                                                        r2val <- getRegVal r2
+                                                        setCflag (compare r1val r2val)
+                                                        execCode c
+                                  (CMPST)         -> do val1 <- pop
+                                                        val2 <- pop
+                                                        setCflag (compare val1 val2)
+                                                        execCode c
+                                  (PUSHR r)       -> do val <- getRegVal r
+                                                        push val
+                                                        execCode c
+                                  (BR)            -> do val <- pop
+                                                        jumpI c val
+                                                        execCode c
+                                                        
 
+execInstBX              :: Code -> Cond -> Label -> ST State
+execInstBX c cond l     = do b <- validCflag cond
+                             if b then
+                                jump c l
+                             else 
+                                nothing
+                             execCode c
+                      
+execInstB               :: Code -> Cond -> Name -> ST State
+execInstB c cond n      = do b <- validCflag cond
+                             if b then
+                                jumpS c n
+                             else 
+                                nothing
+                             execCode c
 
-                                                    
+                             
+setStackSize                         :: Integer -> Stack -> Stack
+setStackSize n s         
+        | n >  toInteger(length (s)) = setStackSize n (0:s)
+        | n <  toInteger(length (s)) = setStackSize n (tail s)
+        | n == toInteger(length (s)) = s
+                                                  
+compare                         :: Integer -> Integer -> CFlag
+compare i1 i2   | i1 == i2      = EQ'
+                | i1 <  i2      = LT'
+                | i1 >  i2      = GT'
+
+-- EQ | NE | GT | LT | GE | LE
+
+compareCF                :: CFlag -> Cond -> Bool
+compareCF _ NONE         = True
+compareCF NONE' _        = False
+compareCF EQ' EQ         = True
+compareCF EQ' GE         = True
+compareCF EQ' LE         = True
+compareCF EQ' _          = False
+compareCF GT' GT         = True
+compareCF GT' GE         = True
+compareCF GT' NE         = True
+compareCF GT' _          = False
+compareCF LT' LT         = True
+compareCF LT' LE         = True
+compareCF LT' NE         = True
+compareCF LT' _          = False
+          
 find          :: Eq a => a -> [(a,b)] -> b
 find n (x:xs) = if n == (fst x) then (snd x) else find n xs 
 

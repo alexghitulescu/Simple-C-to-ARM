@@ -55,7 +55,7 @@ addMain x     = [".balign 4" ++ endl, "nr: .asciz \"%d \\n\"" ++ endl, ".balign 
                       ".text" ++ endl, ".global printf" ++ endl, 
                       ".balign 4" ++ endl, ".global main" ++ endl, "main:" ++ endl, 
                       "\t push {lr} " ++ endl, endl] 
-                      ++ x ++ [endl , "pop {lr} " ++ endl, 
+                      ++ x ++ [endl , "\t pop {lr} " ++ endl, 
                       "\t bx lr" ++ endl, endl, "addr_of_nr : .word nr" ++ endl, endl]
 
 addVars                       :: Code -> [String] -> [String]

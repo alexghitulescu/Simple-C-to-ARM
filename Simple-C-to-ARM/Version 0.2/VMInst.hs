@@ -6,7 +6,8 @@ module VMInst (
     Inst   (..),
     Label  (..),
     Reg    (..),
-    Cond   (..)
+    Cond   (..),
+    CFlag  (..)
 ) where
 
 import AST
@@ -25,6 +26,8 @@ data Inst             =  ADDRESS Name
                       |  PUSHV Name
                       |  POP Name
                       |  DO Op
+                      |  CMP Reg Reg
+                      |  CMPV Reg Integer
                       |  BX Cond Label
                       |  BXL Cond Label
                       |  B Cond Name
@@ -35,11 +38,15 @@ data Inst             =  ADDRESS Name
                       |  HALT
                       |  LDR Reg Reg Integer
                       |  LDRV Reg Integer
-                      |  CMP Reg Reg
+                      |  CMPST
+                      |  PUSHR Reg
+                      |  BR
                          deriving (Show, Eq)
 
-data Reg              = SB | PC | LR | SP | R Name
+data Reg              = SB | PC | LR | SP | R Name deriving (Show, Eq)
 
-data Cond             = EQ | NE | GT | LT | GE | LE | NONE
+data Cond             = EQ | NE | GT | LT | GE | LE | NONE deriving (Show, Eq)
+
+data CFlag            = EQ' | GT' | LT' | NONE' deriving (Show, Eq)
                          
 type Label            =  Integer

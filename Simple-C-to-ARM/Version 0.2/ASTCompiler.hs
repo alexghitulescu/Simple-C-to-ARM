@@ -3,6 +3,7 @@ module ASTCompiler (
      comp
 ) where
 
+import Prelude hiding (EQ)
 import AST
 import VMInst
 
@@ -39,7 +40,7 @@ newVars (n:ns) = (ADDRESS n):(newVars ns)
 compProg                        :: Prog -> ST Code
 compProg (GlobalVar n)          = return [ADDRESS n]
 compProg (Fun n ns st)          = do code <- (compStmt st)
-                                     return ([LABELS n] ++ code ++ [POPB])
+                                     return ([LABELS n, PUSHR LR] ++ code ++ [BR])
 compProg (PSeq [    ])          = return []
 compProg (PSeq (x:xs))          = do code <- compProg x
                                      code' <- compProg (PSeq xs)
@@ -52,22 +53,24 @@ compStmt (Print e)              = return ((compExpr e) ++ [PRINT])
 compStmt (Seqn [    ])          = return []
 compStmt (Seqn (x:xs))          = do code <- compStmt x
                                      code' <- compStmt (Seqn xs)
-                                     return (code ++ code') 
+                                     return (code ++ code')
 compStmt (While e p)            = do lb <- fresh
                                      code <- compStmt p
-                                     lb' <- fresh 
-                                     return ([LABEL lb] ++ (compExpr e) ++ [JUMPZ (lb')] ++ code ++ [JUMP lb, LABEL (lb')])
+                                     lb' <- fresh
+                                     return ([LABEL lb] ++ (compExpr e) ++ (jumpz lb') ++ code ++ [BX NONE lb, LABEL (lb')])
 compStmt (If e p1 (Seqn []))    = do lb <- fresh
                                      code <- compStmt p1
-                                     return ((compExpr e) ++ [JUMPZ lb] ++ code ++ [LABEL lb]) 
+                                     return ((compExpr e) ++ (jumpz lb) ++ code ++ [LABEL lb])
 compStmt (If e p1 p2)           = do lb <- fresh
                                      lb' <- fresh
                                      code <- compStmt p1
                                      code' <- compStmt p2
-                                     return ((compExpr e) ++ [JUMPZ lb] ++ code ++ [JUMP (lb'), LABEL lb] ++ code' ++ [LABEL (lb')])
-compStmt (Apply n e)            = do lb <- fresh
-                                     return ([PUSH lb] ++ (compExprs e) ++ [JUMPS n] ++ [LABEL lb])
+                                     return ((compExpr e) ++ (jumpz lb) ++ code ++ [BX NONE lb', LABEL lb] ++ code' ++ [LABEL (lb')])
+compStmt (Apply n e)            = return ((compExprs e) ++ [BL NONE n])
 
+jumpz                           :: Label -> Code
+jumpz lb                        = [PUSH 0, CMPST, BX EQ lb] 
+                                     
 compExprs                     :: [Expr] -> Code
 compExprs []                  = []
 compExprs (x:xs)              = (compExpr x) ++ (compExprs xs)

@@ -7,7 +7,7 @@ module Main (
 
 import AST
 import Parser
-import CodeGen
+--import CodeGen
 import VMRunner
 import SampleProg
 import ASTCompiler
