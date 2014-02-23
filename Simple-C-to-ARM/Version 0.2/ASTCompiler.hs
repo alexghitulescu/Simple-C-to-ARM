@@ -47,7 +47,7 @@ compProg (PSeq (x:xs))          = do code <- compProg x
                                      return (code ++ code')
                 
 compStmt                        :: Stmt -> ST Code
-compStmt (LocalVar n)             = return [ADDRESS n]
+compStmt (LocalVar n)           = return [ADDRESS n]
 compStmt (Assign v e)           = return ((compExpr e) ++ [POP v])
 compStmt (Print e)              = return ((compExpr e) ++ [PRINT])
 compStmt (Seqn [    ])          = return []
@@ -69,7 +69,7 @@ compStmt (If e p1 p2)           = do lb <- fresh
 compStmt (Apply n e)            = return ((compExprs e) ++ [BL NONE n])
 
 jumpz                           :: Label -> Code
-jumpz lb                        = [PUSH 0, CMPST, BX EQ lb] 
+jumpz lb                        = [PUSH 0, CMPST, BX EQ lb]
                                      
 compExprs                     :: [Expr] -> Code
 compExprs []                  = []

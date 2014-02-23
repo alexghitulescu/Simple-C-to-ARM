@@ -8,15 +8,17 @@
  .balign 4 
  var_t: .word 0 
  .balign 4 
+ var_i: .word 0 
+ .balign 4 
  nr: .asciz "%d \n" 
  .balign 4 
  .text 
  .global printf 
  .balign 4 
  .global main 
- main: 
- 	 push {lr}  
   
+ fib: 
+ 	 push {lr} 
  	 mov r1, #1 
  	 push {r1} 
  	 ldr r1, addr_a 
@@ -42,8 +44,11 @@
  	 ldr r1, addr_c 
  	 ldr r1, [r1] 
  	 push {r1} 
+ 	 mov r1, #0 
+ 	 push {r1} 
  	 pop {r1} 
- 	 cmp r1, #0 
+ 	 pop {r2} 
+ 	 cmp r1, r2 
  	 beq label1 
  	 ldr r1, addr_b 
  	 ldr r1, [r1] 
@@ -84,18 +89,53 @@
  	 str r2, [r1] 
  	 b label0 
  label1: 
+ 	 pop {lr}  
+ 	 bx lr 
+ main: 
+ 	 push {lr} 
+ 	 mov r1, #12 
+ 	 push {r1} 
+ 	 ldr r1, addr_i 
+ 	 pop {r2} 
+ 	 str r2, [r1] 
+ label2: 
+ 	 ldr r1, addr_i 
+ 	 ldr r1, [r1] 
+ 	 push {r1} 
+ 	 mov r1, #0 
+ 	 push {r1} 
+ 	 pop {r1} 
+ 	 pop {r2} 
+ 	 cmp r1, r2 
+ 	 beq label3 
+ 	 bl fib 
  	 ldr r1, addr_b 
  	 ldr r1, [r1] 
  	 push {r1} 
  	 pop {r1} 
  	 ldr r0, addr_of_nr 
  	 bl printf 
-  
- pop {lr}  
+ 	 ldr r1, addr_i 
+ 	 ldr r1, [r1] 
+ 	 push {r1} 
+ 	 mov r1, #1 
+ 	 push {r1} 
+ 	 pop {r1} 
+ 	 pop {r2} 
+ 	 sub r1, r2, r1 
+ 	 push {r1} 
+ 	 ldr r1, addr_i 
+ 	 pop {r2} 
+ 	 str r2, [r1] 
+ 	 b label2 
+ label3: 
+ 	 pop {lr}  
  	 bx lr 
+  
   
  addr_of_nr : .word nr 
   
+ addr_i : .word var_i 
  addr_t : .word var_t 
  addr_c : .word var_c 
  addr_b : .word var_b 

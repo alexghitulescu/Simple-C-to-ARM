@@ -36,8 +36,9 @@ data Inst             =  ADDRESS Name
                       |  LABELS Name
                       |  PRINT
                       |  HALT
-                      |  LDR Reg Reg Integer
+                      |  LDR Reg Reg Displacement
                       |  LDRV Reg Integer
+                      |  STR Reg Reg Displacement
                       |  CMPST
                       |  PUSHR Reg
                       |  BR
@@ -50,3 +51,5 @@ data Cond             = EQ | NE | GT | LT | GE | LE | NONE deriving (Show, Eq)
 data CFlag            = EQ' | GT' | LT' | NONE' deriving (Show, Eq)
                          
 type Label            =  Integer
+
+type Displacement     =  Integer

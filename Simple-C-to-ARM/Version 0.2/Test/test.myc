@@ -18,8 +18,9 @@ int fib()
 
 int main (int test) 
 {
-
-	fib();
-	
-	print (b);
+	for (int i = 12; i ; i = i - 1)
+	{
+		fib();
+		print (b);
+	}
 }

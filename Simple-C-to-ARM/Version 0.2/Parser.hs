@@ -14,7 +14,10 @@ types :: [String]
 types = ["int", "void"]
 
 conditional :: [String]
-conditional = ["if", "else", "while"]
+conditional = ["if", "else", "while", "for"]
+
+comparators :: [String]
+comparators = ["==", "!=", "<", "<=", ">", ">="]
 
 def = javaStyle{ commentStart = "/*"
               , commentEnd = "*/"
@@ -25,7 +28,7 @@ def = javaStyle{ commentStart = "/*"
               , opStart = oneOf "~&=:"
               , opLetter = oneOf "~&=:"
               , reservedNames = ["true", "false", "print"] ++ types ++ conditional
-              , reservedOpNames = ["~", "&", "==", "=", "+=", "+", "-", "*"] 
+              , reservedOpNames = ["~", "&", "=", "+=", "+", "-", "*"] ++ comparators 
               , caseSensitive = True
               }
 
@@ -46,10 +49,15 @@ exprParser :: Parser Expr
 exprParser = buildExpressionParser table term <?> "expression"
 table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
         , [Infix (m_reservedOp "&" >> return (Duo And)) AssocLeft]
-        , [Infix (m_reservedOp "==" >> return (Duo Iff)) AssocLeft]
         ,-} [Infix (m_reservedOp "+" >> return (App Add)) AssocLeft]
         , [Infix (m_reservedOp "-" >> return (App Sub)) AssocLeft]
         , [Infix (m_reservedOp "*" >> return (App Mul)) AssocLeft]
+        {-, [Infix (m_reservedOp "==" >> return (Cond CEQ)) AssocNone]
+        , [Infix (m_reservedOp "!=" >> return (Cond CNE)) AssocNone]
+        , [Infix (m_reservedOp "<"  >> return (Cond CLT)) AssocNone]
+        , [Infix (m_reservedOp "<=" >> return (Cond CLE)) AssocNone]
+        , [Infix (m_reservedOp ">"  >> return (Cond CGT)) AssocNone]
+        , [Infix (m_reservedOp ">=" >> return (Cond CGE)) AssocNone]-}
         ]
 term = m_parens exprParser
        <|> fmap Var m_identifier
@@ -71,7 +79,18 @@ funcParser   :: String -> Parser Stmt
 funcParser v =    do { e <- m_parens ( m_commaSep exprParser )
                      ; return (Apply v e)
                      }
-                      
+
+forParser    :: Parser (String, Stmt, Expr, Stmt)
+forParser    =  do { m_reserved "int"
+                   ; d <- m_identifier
+                   ; a <- asgnParser d
+                   ; m_semi
+                   ; e <- exprParser
+                   ; m_semi
+                   ; i <- stmtParser
+                   ; return (d, a, e, i)
+                   }
+                     
 stmtParser :: Parser Stmt
 stmtParser = fmap Seqn (m_semiSep stmt1)
     where
@@ -93,6 +112,11 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
                      ; b <- m_parens exprParser
                      ; p <- m_braces stmtParser
                      ; return (While b p)
+                     }
+              <|> do { m_reserved "for"
+                     ; (d, a, e, i) <- m_parens forParser
+                     ; p <- m_braces stmtParser
+                     ; return (Seqn [LocalVar d, a, While e (Seqn [p, i])])
                      }
               <|> do { m_reserved "print"
                      ; b <- m_parens exprParser

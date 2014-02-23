@@ -27,7 +27,7 @@ data Stmt             =  LocalVar Name
                          deriving Show
 
 
-data Expr             =  Val Integer | Var Name | App Op Expr Expr
+data Expr             =  Val Integer | Var Name | App Op Expr Expr 
                          deriving Show
 
 

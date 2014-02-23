@@ -10,7 +10,7 @@ import ASTCompiler
 import SampleProg
 
 execM                            :: Code -> State
-execM c                          = fst $ runState (execCode c) (elemIndex 0 (LABELS "main") c, 0, 0, [], [1000000], NONE')
+execM c                          = fst $ runState (execCode c) (elemIndex 0 (LABELS "main") c, 0, toInteger(length c), [], [], NONE')
 
 -- State Monad 
 -- ===========
@@ -94,6 +94,13 @@ setRegVal LR i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, i, m, s, cfl
 setRegVal SP i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, setStackSize i s, cflag)))
 setRegVal (R n) i =  put (n, i)
 
+load            :: Integer -> ST Integer
+load i          =  S (\(pc, sb, lr, m, s, cflag) -> (getStackValue i s, (pc, sb, lr, m, s, cflag)))
+
+store           :: Integer -> Integer -> ST ()
+store pos i     =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, setStackValue pos i s, cflag)))
+
+
 
 execCode        :: Code -> ST State
 execCode c      = do inst <- retrieve c
@@ -123,10 +130,15 @@ execCode c      = do inst <- retrieve c
                                   (LABELS n)      -> execCode c
                                   (HALT)          -> do s <- state
                                                         return s
-                                  (LDR r1 r2 i)   -> do r2val <- getRegVal r2
-                                                        setRegVal r1 (r2val + i)
+                                  (LDR r1 r2 d)   -> do r2val <- getRegVal r2
+                                                        val <- load (r2val + d)
+                                                        setRegVal r1 val
                                                         execCode c
                                   (LDRV r i)      -> do setRegVal r i
+                                                        execCode c
+                                  (STR r1 r2 d)   -> do r1val <- getRegVal r1
+                                                        r2val <- getRegVal r2
+                                                        store (r2val + d) r1val
                                                         execCode c
                                   (CMP r1 r2)     -> do r1val <- getRegVal r1
                                                         r2val <- getRegVal r2
@@ -167,6 +179,17 @@ setStackSize n s
         | n <  toInteger(length (s)) = setStackSize n (tail s)
         | n == toInteger(length (s)) = s
                                                   
+getStackValue                        :: Integer -> Stack -> Integer
+getStackValue i s                    = s !! ((length s) - i') where i' = fromInteger i 
+
+setStackValue                        :: Integer -> Integer -> Stack -> Stack
+setStackValue pos i s                = replaceNth ((length s) - pos') i s where pos' = fromInteger pos
+
+replaceNth                     :: Int -> a -> [a] -> [a]
+replaceNth n newVal (x:xs)
+     | n == 0 = newVal:xs
+     | otherwise = x:replaceNth (n-1) newVal xs
+
 compare                         :: Integer -> Integer -> CFlag
 compare i1 i2   | i1 == i2      = EQ'
                 | i1 <  i2      = LT'
