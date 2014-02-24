@@ -15,11 +15,11 @@ import ASTCompiler
 import VMInst
 import System.Environment (getArgs)
 
-compile            :: String -> IO()
-compile fileName   = do prog <- parseFile fileName
-                        print "compilation successful"
-                        progToFile prog
-                        print "code generation successful"
+compile                      :: String -> String -> IO()
+compile fileName outputFile  = do prog <- parseFile fileName
+                                  print "compilation successful"
+                                  progToFile  prog outputFile
+                                  print "code generation successful"
 
 compileToScreen          :: String -> IO()
 compileToScreen fileName = do prog <- parseFile fileName
@@ -35,5 +35,6 @@ printInst fileName  = do prog <- parseFile fileName
                          
 main = do args <- getArgs
           case args of 
-                []      -> print "no file as argument"
-                (x:xs)  -> compile x
+              []        -> print "no file as argument"
+              [x]       -> compile x "out.s"
+              (x:y:xs)  -> compile x y

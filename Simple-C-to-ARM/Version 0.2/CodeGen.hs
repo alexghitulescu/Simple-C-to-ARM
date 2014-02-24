@@ -12,8 +12,8 @@ import ASTCompiler
 endl                        :: String
 endl                        = " \n"
 
-progToFile            :: Prog -> IO()
-progToFile p          = writeFile "out.s" $ unwords (progToARM p)
+progToFile            :: Prog -> String -> IO()
+progToFile p s        = writeFile s $ unwords (progToARM p)
 
 progToARM             :: Prog -> [String]
 progToARM             = codeToARMFull . comp
