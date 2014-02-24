@@ -15,7 +15,6 @@ local.properties
 .classpath
 .settings/
 .loadpath
-*.s
 
 # External tool builders
 .externalToolBuilders/
@@ -214,3 +213,9 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+
+# MyProject
+*.s
+*.o
+*.hi
+*.exe

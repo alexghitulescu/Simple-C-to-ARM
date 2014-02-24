@@ -2,7 +2,8 @@
 module Main (
      compile,
      runInVM,
-     printInst
+     printInst,
+     main
 ) where
 
 import AST
@@ -12,6 +13,7 @@ import VMRunner
 import SampleProg
 import ASTCompiler
 import VMInst
+import System.Environment (getArgs)
 
 compile            :: String -> IO()
 compile fileName   = do prog <- parseFile fileName
@@ -30,3 +32,8 @@ runInVM fileName  = do prog <- parseFile fileName
 printInst           :: String -> IO()
 printInst fileName  = do prog <- parseFile fileName
                          print (comp prog)
+                         
+main = do args <- getArgs
+          case args of 
+                []      -> print "no file as argument"
+                (x:xs)  -> compile x
