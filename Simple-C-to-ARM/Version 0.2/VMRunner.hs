@@ -1,6 +1,7 @@
 
 module VMRunner (
-     execM
+     execM,
+     execPrint
 ) where
 
 import Prelude hiding (EQ, LT, GT, compare)
@@ -8,17 +9,24 @@ import AST
 import VMInst
 import ASTCompiler
 import SampleProg
+import Data.Array.IArray
 
-execM                            :: Code -> State
-execM c                          = fst $ runState (execCode c) (elemIndex 0 (LABELS "main") c, 0, toInteger(length c), [], [], NONE')
+execM                           :: Code -> State
+execM c                         = fst $ runState (execCode c) (elemIndex 0 (LABELS "main") c, 0, toInteger(length c), 0, [], stack, NONE')
+                                                                                        where stack = array (0, 1000) [(i, 0) | i <- [0..1000]]
 
+execPrint                       :: Code -> String
+execPrint c                     = "(pc: " ++ show(pc) ++ ", sb: " ++ show(sb) ++ ", lr: " ++ show(lr) ++ ", sp: " ++ show(sp) ++
+                                  ", mem: " ++ show(m) ++ ", stack: " ++ show(stack) ++ ", flag: " ++ show(cflag) 
+                                        where   stack = take (fromInteger sp) (assocs s)
+                                                (pc, sb, lr, sp, m, s, cflag) = execM c
 -- State Monad 
 -- ===========
 
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Integer, Integer, Integer, Mem, Stack, CFlag)
+type State    = (Integer, Integer, Integer, Integer, Mem, Stack Integer, CFlag)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -36,69 +44,69 @@ instance Monad ST where
 --fresh         =  S (\n -> (n, n+1))
 
 next          :: ST ()
-next          =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc + 1, sb, lr, m, s, cflag)))
+next          =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc + 1, sb, lr, sp, m, s, cflag)))
 
 nothing       :: ST ()
-nothing       =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, s, cflag)))
+nothing       =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, m, s, cflag)))
 
 pop           :: ST Integer
-pop           =  S (\(pc, sb, lr, m, h:s, cflag) -> (h, (pc, sb, lr, m, s, cflag)))
+pop           =  S (\(pc, sb, lr, sp, m, s, cflag) -> (s ! sp, (pc, sb, lr, sp - 1, m, s, cflag)))
 
 push          :: Integer -> ST ()
-push i        =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, i:s, cflag)))  
+push i        =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, i)], cflag)))  
 
 pushV         :: Name -> ST ()
-pushV n       =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, find n m : s, cflag)))
+pushV n       =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, find n m)], cflag)))
 
 put           :: (Name, Integer) -> ST ()
-put (n, i)    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, (n, i):(remP n m), s, cflag)))
+put (n, i)    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, (n, i):(remP n m), s, cflag)))
 
 retrieve      :: Code -> ST Inst
-retrieve c    =  S (\(pc, sb, lr, m, s, cflag) -> (if pc < toInteger(length c) then c !! fromInteger(pc) else HALT, (pc, sb, lr, m, s, cflag)))
+retrieve c    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (if pc < toInteger(length c) then c !! fromInteger(pc) else HALT, (pc, sb, lr, sp, m, s, cflag)))
 
 jump          :: Code -> Label -> ST ()
-jump c l      =  S (\(pc, sb, lr, m, s, cflag) -> ((), (elemIndex 0 (LABEL l) c, sb, lr, m, s, cflag)))
+jump c l      =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (elemIndex 0 (LABEL l) c, sb, lr, sp, m, s, cflag)))
 
 jumpS         :: Code -> Name -> ST ()
-jumpS c n     =  S (\(pc, sb, lr, m, s, cflag) -> ((), (elemIndex 0 (LABELS n) c, sb, lr, m, s, cflag)))
+jumpS c n     =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (elemIndex 0 (LABELS n) c, sb, lr, sp, m, s, cflag)))
 
 jumpI          :: Code -> Integer -> ST ()
-jumpI c i      =  S (\(pc, sb, lr, m, s, cflag) -> ((), (i, sb, lr, m, s, cflag)))
+jumpI c i      =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (i, sb, lr, sp, m, s, cflag)))
 
 mem           :: ST Mem
-mem           =  S (\(pc, sb, lr, m, s, cflag) -> (m, (pc, sb, lr, m, s, cflag)))
+mem           =  S (\(pc, sb, lr, sp, m, s, cflag) -> (m, (pc, sb, lr, sp, m, s, cflag)))
 
 state         :: ST State
-state         =  S (\(pc, sb, lr, m, s, cflag) -> ((pc, sb, lr, m, s, cflag), (pc, sb, lr, m, s, cflag)))
+state         =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((pc, sb, lr, sp, m, s, cflag), (pc, sb, lr, sp, m, s, cflag)))
 
 savePCToLR    :: ST ()
-savePCToLR    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, pc, m, s, cflag)))
+savePCToLR    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, pc, sp, m, s, cflag)))
 
 setCflag      :: CFlag -> ST ()
-setCflag flag =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, s, flag)))
+setCflag flag =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, m, s, flag)))
 
 validCflag    :: Cond -> ST Bool
-validCflag cf =  S (\(pc, sb, lr, m, s, cflag) -> (compareCF cflag cf, (pc, sb, lr, m, s, cflag)))
+validCflag cf =  S (\(pc, sb, lr, sp, m, s, cflag) -> (compareCF cflag cf, (pc, sb, lr, sp, m, s, cflag)))
 
 getRegVal       :: Reg -> ST Integer
-getRegVal SB    =  S (\(pc, sb, lr, m, s, cflag) -> (sb, (pc, sb, lr, m, s, cflag)))
-getRegVal PC    =  S (\(pc, sb, lr, m, s, cflag) -> (pc, (pc, sb, lr, m, s, cflag)))
-getRegVal LR    =  S (\(pc, sb, lr, m, s, cflag) -> (lr, (pc, sb, lr, m, s, cflag)))
-getRegVal SP    =  S (\(pc, sb, lr, m, s, cflag) -> (toInteger(length s), (pc, sb, lr, m, s, cflag)))
-getRegVal (R n) =  S (\(pc, sb, lr, m, s, cflag) -> (find n m, (pc, sb, lr, m, s, cflag)))
+getRegVal PC    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (pc, (pc, sb, lr, sp, m, s, cflag)))
+getRegVal SB    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (sb, (pc, sb, lr, sp, m, s, cflag)))
+getRegVal LR    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (lr, (pc, sb, lr, sp, m, s, cflag)))
+getRegVal SP    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (sp, (pc, sb, lr, sp, m, s, cflag)))
+getRegVal (R n) =  S (\(pc, sb, lr, sp, m, s, cflag) -> (find n m, (pc, sb, lr, sp, m, s, cflag)))
 
 setRegVal         :: Reg -> Integer -> ST ()
-setRegVal SB i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, i, lr, m, s, cflag)))
-setRegVal PC i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (i, sb, lr, m, s, cflag)))
-setRegVal LR i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, i, m, s, cflag)))
-setRegVal SP i    =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, setStackSize i s, cflag)))
+setRegVal PC i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (i, sb, lr, sp, m, s, cflag)))
+setRegVal SB i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, i, lr, sp, m, s, cflag)))
+setRegVal LR i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, i, sp, m, s, cflag)))
+setRegVal SP i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, i, m, s, cflag)))
 setRegVal (R n) i =  put (n, i)
 
 load            :: Integer -> ST Integer
-load i          =  S (\(pc, sb, lr, m, s, cflag) -> (getStackValue i s, (pc, sb, lr, m, s, cflag)))
+load i          =  S (\(pc, sb, lr, sp, m, s, cflag) -> (s ! i, (pc, sb, lr, sp, m, s, cflag)))
 
 store           :: Integer -> Integer -> ST ()
-store pos i     =  S (\(pc, sb, lr, m, s, cflag) -> ((), (pc, sb, lr, m, setStackValue pos i s, cflag)))
+store pos i     =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag)))
 
 
 
@@ -173,22 +181,22 @@ execInstB c cond n      = do b <- validCflag cond
                              execCode c
 
                              
-setStackSize                         :: Integer -> Stack -> Stack
+{-setStackSize                         :: Integer -> Stack -> Stack
 setStackSize n s         
         | n >  toInteger(length (s)) = setStackSize n (0:s)
         | n <  toInteger(length (s)) = setStackSize n (tail s)
         | n == toInteger(length (s)) = s
                                                   
 getStackValue                        :: Integer -> Stack -> Integer
-getStackValue i s                    = s !! ((length s) - i') where i' = fromInteger i 
+getStackValue i s                    = s !! ((length s) - i' - 1) where i' = fromInteger i 
 
 setStackValue                        :: Integer -> Integer -> Stack -> Stack
-setStackValue pos i s                = replaceNth ((length s) - pos') i s where pos' = fromInteger pos
+setStackValue pos i s                = replaceNth ((length s) - pos' - 1) i s where pos' = fromInteger pos
 
 replaceNth                     :: Int -> a -> [a] -> [a]
 replaceNth n newVal (x:xs)
      | n == 0 = newVal:xs
-     | otherwise = x:replaceNth (n-1) newVal xs
+     | otherwise = x:replaceNth (n-1) newVal xs-}
 
 compare                         :: Integer -> Integer -> CFlag
 compare i1 i2   | i1 == i2      = EQ'

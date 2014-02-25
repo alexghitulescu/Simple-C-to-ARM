@@ -11,11 +11,12 @@ module VMInst (
 ) where
 
 import AST
+import Data.Array.IArray
 
 -- Virtual machine
 -- ===============
 
-type Stack            =  [Integer]
+type Stack            =  Array Integer
 
 type Mem              =  [(Name, Integer)]
 
