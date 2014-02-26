@@ -25,25 +25,22 @@ type Code             =  [Inst]
 
 data Inst             =  ADDRESS Name
                       |  PUSH Integer
-                      |  PUSHV Name
-                      |  POP Name
+                      |  PUSHV Reg
+                      |  POP Reg
                       |  DO Op
                       |  CMP Reg Reg
                       |  CMPV Reg Integer
-                      |  BX Cond Label
-                      |  BXL Cond Label
-                      |  B Cond Name
-                      |  BL Cond Name
+                      |  BX Cond Reg
+                      |  BXL Cond Reg
+                      |  B Cond Label
+                      |  BL Cond Label
                       |  LABEL Label
-                      |  LABELS Name
                       |  PRINT
                       |  HALT
                       |  LDR Reg Pos
                       |  LDRV Reg Integer
                       |  STR Reg Pos
                       |  CMPST
-                      |  PUSHR Reg
-                      |  BR
                          deriving (Show, Eq)
 
 data Reg              = SB | PC | LR | SP | R Name deriving (Show, Eq)
@@ -54,6 +51,6 @@ data Cond             = EQ | NE | GT | LT | GE | LE | NONE deriving (Show, Eq)
 
 data CFlag            = EQ' | GT' | LT' | NONE' deriving (Show, Eq)
                          
-type Label            =  Integer
+data Label            = V Integer | N Name deriving (Show, Eq)
 
 type Displacement     =  Integer
