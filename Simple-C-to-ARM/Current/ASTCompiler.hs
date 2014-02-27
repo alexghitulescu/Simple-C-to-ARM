@@ -47,7 +47,7 @@ newVars (n:ns) = (ADDRESS n):(newVars ns)
 compProg                        :: Prog -> ST Code
 compProg (GlobalVar n)          = return [ADDRESS n]
 compProg (Fun n ns st)          = do code <- (compStmt st)
-                                     return ([LABEL (N n), PUSHV LR] ++ code ++ [POP LR])
+                                     return ([LABEL (N n), PUSHV LR] ++ code ++ [POP LR, BX NONE LR])
 compProg (PSeq [    ])          = return []
 compProg (PSeq (x:xs))          = do code <- compProg x
                                      code' <- compProg (PSeq xs)
