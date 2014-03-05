@@ -8,7 +8,7 @@ module VMInst (
     Reg    (..),
     Cond   (..),
     CFlag  (..),
-    Pos    (..)
+    Imd    (..)
 ) where
 
 import AST
@@ -28,8 +28,12 @@ data Inst             =  ADDRESS Name
                       |  PUSHV Reg
                       |  POP Reg
                       |  DO Op
-                      |  CMP Reg Reg
-                      |  CMPV Reg Integer
+                      |  ADD Reg Reg Imd
+                      |  SUB Reg Reg Imd
+                      |  MUL Reg Reg Imd
+                      |  DIV Reg Reg Imd
+                      |  MOV Reg Imd
+                      |  CMP Reg Imd
                       |  BX Cond Reg
                       |  BXL Cond Reg
                       |  B Cond Label
@@ -37,15 +41,15 @@ data Inst             =  ADDRESS Name
                       |  LABEL Label
                       |  PRINT
                       |  HALT
-                      |  LDR Reg Pos
+                      |  LDR Reg Imd
                       |  LDRV Reg Integer
-                      |  STR Reg Pos
+                      |  STR Reg Imd
                       |  CMPST
                          deriving (Show, Eq)
 
-data Reg              = SB | PC | LR | SP | R Name deriving (Show, Eq)
+data Reg              = SB | PC | LR | SP | R Name | GLOBAL Name deriving (Show, Eq)
 
-data Pos              = P Reg Displacement deriving (Show, Eq)
+data Imd              = P Reg Integer | VAL Integer deriving (Show, Eq)
 
 data Cond             = EQ | NE | GT | LT | GE | LE | NONE deriving (Show, Eq)
 

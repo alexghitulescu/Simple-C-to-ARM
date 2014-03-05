@@ -38,10 +38,7 @@ instance Monad ST where
       -- (>>=)  :: ST a -> (a -> ST b) -> ST b
       st >>= f   = S (\s -> let (x,s') = apply st s in apply (f x) s')
 
--- The function that generates the fresh labels. It is of type ST showing that it has a hidden state. 
 
---fresh         :: ST Integer
---fresh         =  S (\n -> (n, n+1))
 
 next          :: ST ()
 next          =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc + 1, sb, lr, sp, m, s, cflag)))
@@ -106,7 +103,6 @@ store           :: Integer -> Integer -> ST ()
 store pos i     =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag)))
 
 
-
 execCode        :: Code -> ST State
 execCode c      = do inst <- retrieve c
                      next
@@ -126,6 +122,20 @@ execCode c      = do inst <- retrieve c
                                                                 push (compNr op val1 val2)
                                                                 execCode c
                                                                 
+                                  (ADD rf r1 imd)         -> do val1 <- getRegVal r1
+                                                                val2 <- getImdVal imd
+                                                                setRegVal rf (val1 + val2)
+                                                                execCode c
+                                   
+                                  (SUB rf r1 imd)         -> do val1 <- getRegVal r1
+                                                                val2 <- getImdVal imd
+                                                                setRegVal rf (val1 - val2)
+                                                                execCode c
+                                                                
+                                  (MOV r imd)             -> do val <- getImdVal imd
+                                                                setRegVal r val
+                                                                execCode c
+                                   
                                   (BX cond reg)           -> execInstBX c cond reg
                                   (BXL cond reg)          -> do savePCToLR
                                                                 execInstBX c cond reg
@@ -158,9 +168,9 @@ execCode c      = do inst <- retrieve c
                                                                 store (r2val + d) r1val
                                                                 execCode c
                                                                 
-                                  (CMP r1 r2)             -> do r1val <- getRegVal r1
-                                                                r2val <- getRegVal r2
-                                                                setCflag (compare r1val r2val)
+                                  (CMP r1 imd)            -> do r1val <- getRegVal r1
+                                                                imdval <- getImdVal imd
+                                                                setCflag (compare r1val imdval)
                                                                 execCode c
                                                                 
                                   (CMPST)                 -> do val1 <- pop
@@ -169,6 +179,11 @@ execCode c      = do inst <- retrieve c
                                                                 execCode c
                                                         
 
+getImdVal               :: Imd -> ST Integer
+getImdVal (VAL i)       = return i
+getImdVal (P r i)       = do val <- getRegVal r
+                             return (val + i)
+                                                        
 execInstBX              :: Code -> Cond -> Reg -> ST State
 execInstBX c cond reg   = do b <- validCflag cond
                              if b then

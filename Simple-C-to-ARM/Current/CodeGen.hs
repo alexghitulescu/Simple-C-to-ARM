@@ -36,8 +36,8 @@ instToARM (POP n)           = ["\t ldr r1, addr_" ++ n ++ endl, "\t pop {r2}" ++
 instToARM (DO op)           = ["\t pop {r1}" ++ endl, "\t pop {r2}" ++ endl,
                                               "\t " ++ opToARM(op) ++ " r1, r2, r1" ++ endl, "\t push {r1}" ++ endl]
 instToARM (CMPST)           = ["\t pop {r1}" ++ endl, "\t pop {r2}" ++ endl, "\t cmp r1, r2" ++ endl]
-instToARM (BX cond l)       = ["\t b" ++ (condToARM cond) ++ " label" ++ show(l) ++ endl]
-instToARM (BXL cond l)      = ["\t bl" ++ (condToARM cond) ++ " label" ++ show(l) ++ endl]
+instToARM (BX cond l)       = ["\t bx" ++ (condToARM cond) ++ " label" ++ show(l) ++ endl]
+instToARM (BXL cond l)      = ["\t bxl" ++ (condToARM cond) ++ " label" ++ show(l) ++ endl]
 instToARM (B cond n)        = ["\t b" ++ (condToARM cond) ++ " " ++ n ++ endl]
 instToARM (BL cond n)       = ["\t bl" ++ (condToARM cond) ++ " " ++ n ++ endl]
 instToARM (LABEL l)         = ["label" ++ show(l) ++ ":" ++ endl]

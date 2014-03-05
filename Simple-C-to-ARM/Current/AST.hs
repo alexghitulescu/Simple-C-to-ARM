@@ -26,13 +26,14 @@ data Stmt             =  LocalVar Name
                       |  Apply Name [Expr]
                          deriving Show
 
-
 data Expr             =  Val Integer | Var Name | App Op Expr Expr 
                          deriving Show
 
 
 type Name             =  String
 
+data Type             =  Int | Str 
+                         deriving Show
 
 data Op               =  Add | Sub | Mul | Div
                          deriving (Show , Eq)
