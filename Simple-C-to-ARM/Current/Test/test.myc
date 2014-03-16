@@ -2,6 +2,7 @@ int result;
 
 int fib(int i)
 {	
+	print (i);
 	int a;
 	int b;
 	int c;
@@ -15,6 +16,7 @@ int fib(int i)
 		b = a + b;
 		a = t;
 		c = c - 1;
+		print (c);
 	}
 	result = b;
 }
@@ -23,6 +25,7 @@ int main ()
 {
 	//for (int i = 12; i ; i = i - 1)
 	//{
+		print (16);
 		fib(16);
 		print (result);
 	//}
