@@ -127,16 +127,16 @@ instToARM (DO op)           = do commentB ("DO " ++ (opToARM op))
                                  add1 "\t push {r3}"
                                  comment "end"
               
-instToARM (ADD SP r1 imd)   =    add4 "\t add sp, " (getRegVal r1) ", " (getImdVal imd 4)
-instToARM (ADD SB r1 imd)   =    add4 "\t add r12, " (getRegVal r1) ", " (getImdVal imd 4)
+instToARM (ADD SP r1 imd)   =    add4 "\t add sp, " (getRegVal r1) ", " (getImdVal imd (-4))
+instToARM (ADD SB r1 imd)   =    add4 "\t add r12, " (getRegVal r1) ", " (getImdVal imd (-4))
 instToARM (ADD rf r1 imd)   =    add6 "\t add " (getRegVal rf) ", " (getRegVal r1) ", " (getImdVal imd 1)   
 
-instToARM (SUB SP r1 imd)   =    add4 "\t sub sp, " (getRegVal r1) ", " (getImdVal imd 4)
-instToARM (SUB SB r1 imd)   =    add4 "\t sub r12, " (getRegVal r1) ", " (getImdVal imd 4)
+instToARM (SUB SP r1 imd)   =    add4 "\t sub sp, " (getRegVal r1) ", " (getImdVal imd (-4))
+instToARM (SUB SB r1 imd)   =    add4 "\t sub r12, " (getRegVal r1) ", " (getImdVal imd (-4))
 instToARM (SUB rf r1 imd)   =    add6 "\t sub " (getRegVal rf) ", " (getRegVal r1) ", " (getImdVal imd 1)
 
 instToARM (MOV r (VAL i))   =    add4 "\t mov " (getRegVal r) ", #" (show i)
-instToARM (MOV r (P rs i))  =    add6 "\t add " (getRegVal r) ", " (getRegVal rs) ", #" (show (i * 4))
+instToARM (MOV r (P rs i))  =    add6 "\t add " (getRegVal r) ", " (getRegVal rs) ", #" (show (i * (-4)))
 
 instToARM (B cond l)        =    add4 "\t b" (condToARM cond) " " (getLabel l)
 instToARM (BL cond l)       =    add4 "\t bl" (condToARM cond) " " (getLabel l)
@@ -155,14 +155,14 @@ instToARM (LDR r1 imd)      = case imd of
                                                 add2 "\t ldr r3, addr_" n 
                                                 add3 "\t ldr " (getRegVal r1) ", [r3]"
                                                 comment "end"
-                                _         ->    add4 "\t ldr " (getRegVal r1) ", " (getImdVal imd 4)
+                                _         ->    add4 "\t ldr " (getRegVal r1) ", " (getImdVal imd (-4))
                                 
 instToARM (STR r1 imd)      = case imd of
                                 P (G n) _ -> do commentB ("STR " ++ n ++ " from " ++ (getRegVal r1))
                                                 add2 "\t ldr r3, addr_" n 
                                                 add3 "\t str " (getRegVal r1) ", [r3]"
                                                 comment "end"
-                                _         ->    add4 "\t str " (getRegVal r1) ", " (getImdVal imd 4)
+                                _         ->    add4 "\t str " (getRegVal r1) ", " (getImdVal imd (-4))
                                 
 instToARM (CMPST)           = do commentB "CMPST"
                                  add1 "\t pop {r3}"
