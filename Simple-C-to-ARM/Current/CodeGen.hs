@@ -4,7 +4,7 @@ module CodeGen (
      progToScreen
 ) where
 
-import Prelude hiding (EQ, LT, GT, empty)
+import Prelude hiding (EQ, LT, GT)
 import Data.List (intercalate)
 import AST
 import VMInst
