@@ -27,11 +27,13 @@ compileToScreen fileName = do prog <- parseFile fileName
 
 runInVM           :: String -> IO()
 runInVM fileName  = do prog <- parseFile fileName
-                       print ( execM (comp prog) )
+                       code <- compE prog
+                       print (execPrint (code))
 
 printInst           :: String -> IO()
 printInst fileName  = do prog <- parseFile fileName
-                         print (comp prog)
+                         code <- compE prog 
+                         print code
                          
 main = do args <- getArgs
           case args of 

@@ -12,7 +12,7 @@ import SampleProg
 import Data.Array.IArray
 
 execM                           :: Code -> State
-execM c                         = fst $ runState (execCode c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c), 0, [], stack, NONE')
+execM c                         = fst $ runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c), 0, [], stack, NONE')
                                                                                         where stack = array (0, 1000) [(i, 0) | i <- [0..1000]]
 
 execPrint                       :: Code -> String
@@ -88,6 +88,7 @@ getRegVal SB    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (sb, (pc, sb, lr, sp, m,
 getRegVal LR    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (lr, (pc, sb, lr, sp, m, s, cflag)))
 getRegVal SP    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (sp, (pc, sb, lr, sp, m, s, cflag)))
 getRegVal (R n) =  S (\(pc, sb, lr, sp, m, s, cflag) -> (find n m, (pc, sb, lr, sp, m, s, cflag)))
+getRegVal (G n) =  S (\(pc, sb, lr, sp, m, s, cflag) -> (find n m, (pc, sb, lr, sp, m, s, cflag)))
 
 setRegVal         :: Reg -> Integer -> ST ()
 setRegVal PC i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (i, sb, lr, sp, m, s, cflag)))
@@ -95,6 +96,7 @@ setRegVal SB i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, i, lr, sp, m
 setRegVal LR i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, i, sp, m, s, cflag)))
 setRegVal SP i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, i, m, s, cflag)))
 setRegVal (R n) i =  put (n, i)
+setRegVal (G n) i =  put (n, i)
 
 load            :: Integer -> ST Integer
 load i          =  S (\(pc, sb, lr, sp, m, s, cflag) -> (s ! i, (pc, sb, lr, sp, m, s, cflag)))
@@ -102,6 +104,9 @@ load i          =  S (\(pc, sb, lr, sp, m, s, cflag) -> (s ! i, (pc, sb, lr, sp,
 store           :: Integer -> Integer -> ST ()
 store pos i     =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag)))
 
+start           :: Code -> ST State
+start c         = do addAddress (filter (isAddress) c)
+                     execCode c
 
 execCode        :: Code -> ST State
 execCode c      = do inst <- retrieve c
@@ -145,9 +150,6 @@ execCode c      = do inst <- retrieve c
                                                                 execInstB c cond l
                                                                 
                                   (LABEL l)               -> execCode c
-                                  
-                                  (ADDRESS n)             -> do put (n, 0)
-                                                                execCode c
                                                                 
                                   (PRINT)                 -> do pop
                                                                 execCode c
@@ -156,17 +158,23 @@ execCode c      = do inst <- retrieve c
                                                                 return s
                                                                 
                                   (LDR r1 (P r2 d))       -> do r2val <- getRegVal r2
-                                                                val <- load (r2val + d)
-                                                                setRegVal r1 val
-                                                                execCode c
+                                                                case r2 of
+                                                                        G n -> do setRegVal r1 r2val
+                                                                                  execCode c
+                                                                        _   -> do val <- load (r2val + d)
+                                                                                  setRegVal r1 val
+                                                                                  execCode c
                                                                 
                                   (LDRV r i)              -> do setRegVal r i
                                                                 execCode c
                                                                 
                                   (STR r1 (P r2 d))       -> do r1val <- getRegVal r1
-                                                                r2val <- getRegVal r2
-                                                                store (r2val + d) r1val
-                                                                execCode c
+                                                                case r2 of
+                                                                        G n -> do setRegVal r2 r1val 
+                                                                                  execCode c
+                                                                        _   -> do r2val <- getRegVal r2
+                                                                                  store (r2val + d) r1val
+                                                                                  execCode c
                                                                 
                                   (CMP r1 imd)            -> do r1val <- getRegVal r1
                                                                 imdval <- getImdVal imd
@@ -177,7 +185,11 @@ execCode c      = do inst <- retrieve c
                                                                 val2 <- pop
                                                                 setCflag (compare val1 val2)
                                                                 execCode c
-                                                        
+
+addAddress                      :: Code -> ST ()
+addAddress []                   = return ()
+addAddress (ADDRESS n:xs)       = do put (n, 0)
+                                     addAddress xs
 
 getImdVal               :: Imd -> ST Integer
 getImdVal (VAL i)       = return i
@@ -238,3 +250,7 @@ compNr Div m n  = m `quot` n
 elemIndex :: Eq a => Integer -> a -> [a] -> Integer
 elemIndex n a [] = 1000000
 elemIndex n a (x:xs) = if x == a then n else elemIndex (n + 1) a xs
+
+isAddress               :: Inst -> Bool
+isAddress (ADDRESS _)   = True
+isAddress _             = False

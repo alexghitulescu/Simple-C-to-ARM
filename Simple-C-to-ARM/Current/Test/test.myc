@@ -1,4 +1,6 @@
-int fib()
+int result;
+
+int fib(int i)
 {	
 	int a;
 	int b;
@@ -6,7 +8,7 @@ int fib()
 	int t;
 	a = 1;
 	b = 1;
-	c = 20 - 2;
+	c = i - 2;
 	while (c)
 	{
 		t = b;
@@ -14,13 +16,14 @@ int fib()
 		a = t;
 		c = c - 1;
 	}
+	result = b;
 }
 
-int main (int test) 
+int main () 
 {
-	for (int i = 12; i ; i = i - 1)
-	{
-		fib();
-		print (b);
-	}
+	//for (int i = 12; i ; i = i - 1)
+	//{
+		fib(16);
+		print (result);
+	//}
 }

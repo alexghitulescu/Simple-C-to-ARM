@@ -43,7 +43,7 @@ instance Monad ST where
       -- (>>=)  :: ST a -> (a -> ST b) -> ST b
       st >>= f   = S (\s -> let (x,s') = apply st s in apply (f x) s')
 
--- The function that generates the fresh labels. It is of type ST showing that it has a hidden state. 
+      
 
 fresh                   :: ST Label
 fresh                   =  S (\(n, env, e) -> (V n, (n+1, env, e)))
@@ -75,24 +75,26 @@ addEnvDisplacement      :: Integer -> ST ()
 addEnvDisplacement i    =  S (\(n, env, e) -> ((), (n, env `addDisplacement` i, e)))
 
 
-
+-- [names of arguments] -> where should in start
 addFuncArgs             :: [Name] -> Integer -> ST ()
 addFuncArgs [] _        = return ()
 addFuncArgs (n:ns) i    = do addEnvVar n (P SB (-i))
                              addFuncArgs ns (i + 1)
 
 compProg                        :: Prog -> ST Code
-compProg (GlobalVar n)          = do addEnvVar n (P (GLOBAL n) 0)
+compProg (GlobalVar n)          = do addEnvVar n (P (G n) 0)
                                      return [ADDRESS n]
 compProg (Fun n ns st)          = do addEnvLevel
                                      --take space for arguments on the stack
                                      addFuncArgs ns 1
                                      setEnvDisplacement 2
                                      code <- (compStmt st)
+                                     envDis <- getEnvDisplacement
                                      remEnvLevel
                                      --save SB, LR and execute the code and increment SP by the number of args.
-                                     return ([LABEL (N n), ADD SP SP (VAL (toInteger(length ns))), PUSHV SB, MOV SB (P SP 0), PUSHV LR] ++ code ++ 
-                                                [POP LR, POP SB, SUB SP SP (VAL (toInteger(length ns))), BX NONE LR]) -- restore SP to before arguments
+                                     return ([LABEL (N n), PUSHV SB, MOV SB (P SP 0), PUSHV LR] ++ code ++ 
+                                                [SUB SP SP (VAL (envDis - 2)), POP LR, POP SB, SUB SP SP (VAL (toInteger(length ns))), BX NONE LR]) 
+                                                -- restore SP to before arguments
 compProg (PSeq [    ])          = return []
 compProg (PSeq (x:xs))          = do code <- compProg x
                                      code' <- compProg (PSeq xs)
@@ -105,7 +107,7 @@ compStmt (LocalVar n)           = do dis <- getEnvDisplacement
                                      return [ADD SP SP (VAL 1)]
 compStmt (Assign v e)           = do posV <- getEnvVar v
                                      expr <- compExpr e
-                                     return (expr ++ [POP (R "R1"), STR (R "R1") posV])
+                                     return (expr ++ [POP (R "r5"), STR (R "r5") posV])
 compStmt (Print e)              = do expr <- compExpr e
                                      return (expr ++ [PRINT])
 compStmt (Seqn [    ])          = return []
@@ -142,7 +144,7 @@ compExprs (e:es)              = do expr <- compExpr e
 compExpr                      :: Expr -> ST Code
 compExpr (Val n)              = return [PUSH n]
 compExpr (Var v)              = do posV <- getEnvVar v
-                                   return [LDR (R "R1") posV, PUSHV (R "R1")]
+                                   return [LDR (R "r5") posV, PUSHV (R "r5")]
 compExpr (App op e1 e2)       = do expr1 <- compExpr e1
                                    expr2 <- compExpr e2
                                    return (expr1 ++ expr2 ++ [DO op])

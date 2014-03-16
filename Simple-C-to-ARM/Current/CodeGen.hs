@@ -28,23 +28,48 @@ codeToARM             :: Code -> [String]
 codeToARM []          = []
 codeToARM (x:xs)      = (instToARM x) ++ (codeToARM xs)
 
+getRegVal       :: Reg -> String
+getRegVal PC    = "pc"
+getRegVal SB    = "r12" 
+getRegVal LR    = "lr"
+getRegVal SP    = "sp"
+getRegVal (R n) = n
+
 instToARM                   :: Inst -> [String]
 instToARM (ADDRESS n)       = []
-instToARM (PUSH i)          = ["\t mov r1, #" ++ show(i) ++ endl, "\t push {r1}" ++ endl]
-instToARM (PUSHV n)         = ["\t ldr r1, addr_" ++ n ++ endl, "\t ldr r1, [r1]" ++ endl, "\t push {r1}" ++ endl]
-instToARM (POP n)           = ["\t ldr r1, addr_" ++ n ++ endl, "\t pop {r2}" ++ endl, "\t str r2, [r1]" ++ endl]
-instToARM (DO op)           = ["\t pop {r1}" ++ endl, "\t pop {r2}" ++ endl,
-                                              "\t " ++ opToARM(op) ++ " r1, r2, r1" ++ endl, "\t push {r1}" ++ endl]
-instToARM (CMPST)           = ["\t pop {r1}" ++ endl, "\t pop {r2}" ++ endl, "\t cmp r1, r2" ++ endl]
-instToARM (BX cond l)       = ["\t bx" ++ (condToARM cond) ++ " label" ++ show(l) ++ endl]
-instToARM (BXL cond l)      = ["\t bxl" ++ (condToARM cond) ++ " label" ++ show(l) ++ endl]
-instToARM (B cond n)        = ["\t b" ++ (condToARM cond) ++ " " ++ n ++ endl]
-instToARM (BL cond n)       = ["\t bl" ++ (condToARM cond) ++ " " ++ n ++ endl]
-instToARM (LABEL l)         = ["label" ++ show(l) ++ ":" ++ endl]
-instToARM (LABELS n)        = [n ++ ":" ++ endl]
+instToARM (PUSH i)          = ["\t mov r3, #" ++ show(i) ++ endl, "\t push {r3}" ++ endl]
+instToARM (PUSHV (G n))     = ["\t ldr r3, addr_" ++ n ++ endl, "\t ldr r3, [r3]" ++ endl, "\t push {r3}" ++ endl]
+instToARM (PUSHV r)         = ["\t push {" ++ (getRegVal r) ++ "}" ++ endl]
+instToARM (POP (G n))       = ["\t ldr r3, addr_" ++ n ++ endl, "\t pop {r4}" ++ endl, "\t str r4, [r3]" ++ endl]
+instToARM (POP r)           = ["\t pop {" ++ (getRegVal r) ++ "}" ++ endl]
+instToARM (DO op)           = ["\t pop {r3}" ++ endl, "\t pop {r4}" ++ endl,
+                                              "\t " ++ opToARM(op) ++ " r3, r4, r3" ++ endl, "\t push {r3}" ++ endl]
+instToARM (ADD rf r1 imd)   = ["\t add " ++ (getRegVal rf) ++ ", " ++ (getRegVal r1) ++ ", " ++ (getImdVal imd) ++ endl]
+instToARM (SUB rf r1 imd)   = ["\t sub " ++ (getRegVal rf) ++ ", " ++ (getRegVal r1) ++ ", " ++ (getImdVal imd) ++ endl]
+instToARM (MOV r (VAL i))   = ["\t mov " ++ (getRegVal r) ++ ", #" ++ show i ++ endl]
+instToARM (MOV r (P rs i))  = ["\t add " ++ (getRegVal r) ++ ", " ++ (getRegVal rs) ++ ", #" ++ show i ++ endl]
+instToARM (B cond l)        = ["\t b" ++ (condToARM cond) ++ " " ++ getLabel l ++ endl]
+instToARM (BL cond l)       = ["\t bl" ++ (condToARM cond) ++ " " ++ getLabel l ++ endl]
+instToARM (BX cond r)       = ["\t bx" ++ (condToARM cond) ++ " " ++ getRegVal r ++ endl]
+instToARM (BXL cond r)      = ["\t bxl" ++ (condToARM cond) ++ " " ++ getRegVal r ++ endl]
+instToARM (LABEL l)         = [getLabel l ++ ":" ++ endl]
 instToARM (PRINT)           = ["\t pop {r1}" ++ endl, "\t ldr r0, addr_of_nr" ++ endl, "\t bl printf" ++ endl]
-instToARM (PUSHR LR)        = ["\t push {lr}" ++ endl]
-instToARM (BR)              = ["\t pop {lr} " ++ endl, "\t bx lr" ++ endl]
+instToARM (LDR r1 imd)      = case imd of
+                                P (G n) _ -> ["\t ldr " ++ getRegVal r1 ++ ", addr_" ++ n ++ endl, "\t ldr r3, [r3]" ++ endl]
+                                _         -> ["\t ldr " ++ getRegVal r1 ++ ", " ++ getImdVal imd ++ endl]
+instToARM (STR r1 imd)      = case imd of
+                                P (G n) _ -> ["\t ldr r3, addr_" ++ n ++ endl, "\t str " ++ getRegVal r1 ++ ", [r3]" ++ endl]
+                                _         -> ["\t str " ++ getRegVal r1 ++ ", " ++ getImdVal imd ++ endl]
+instToARM (CMPST)           = ["\t pop {r3}" ++ endl, "\t pop {r4}" ++ endl, "\t cmp r3, r4" ++ endl]
+
+
+getImdVal               :: Imd -> String
+getImdVal (VAL i)       = '#':show i
+getImdVal (P r i)       = "[" ++ (getRegVal r) ++ ", #" ++ show (i * 4) ++ "]"
+
+getLabel                :: Label -> String
+getLabel (V i)          = "label" ++ show i
+getLabel (N n)          = n
 
 opToARM       :: Op -> String
 opToARM Add   = "add"

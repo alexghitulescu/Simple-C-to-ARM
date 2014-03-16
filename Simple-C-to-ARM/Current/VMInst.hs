@@ -47,7 +47,7 @@ data Inst             =  ADDRESS Name
                       |  CMPST
                          deriving (Show, Eq)
 
-data Reg              = SB | PC | LR | SP | R Name | GLOBAL Name deriving (Show, Eq)
+data Reg              = SB | PC | LR | SP | R Name | G Name deriving (Show, Eq)
 
 data Imd              = P Reg Integer | VAL Integer deriving (Show, Eq)
 
