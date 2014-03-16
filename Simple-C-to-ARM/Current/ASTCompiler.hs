@@ -8,7 +8,6 @@ import Prelude hiding (EQ)
 import AST
 import Environment
 import VMInst
-import qualified Data.Map as Map
 
 comp                            :: Prog -> Code
 comp p                          = fst $ runState' p
@@ -44,6 +43,7 @@ instance Monad ST where
       st >>= f   = S (\s -> let (x,s') = apply st s in apply (f x) s')
 
       
+-- The function that generates the fresh labels. It is of type ST showing that it has a hidden state. 
 
 fresh                   :: ST Label
 fresh                   =  S (\(n, env, e) -> (V n, (n+1, env, e)))

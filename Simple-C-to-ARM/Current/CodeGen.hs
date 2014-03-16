@@ -4,13 +4,62 @@ module CodeGen (
      progToScreen
 ) where
 
-import Prelude hiding (EQ, LT, GT)
+import Prelude hiding (EQ, LT, GT, empty)
 import AST
 import VMInst
 import ASTCompiler
+import Data.Foldable (toList)
+import Data.Sequence
 
-endl                        :: String
-endl                        = " \n"
+
+
+
+data ST a     = S { runState :: State -> (a, State) }
+type State    = (Seq String, [Name])
+
+apply         :: ST a -> State -> (a,State)
+apply (S f)  = f 
+
+instance Monad ST where
+      -- return :: a -> ST a
+      return x   = S (\s -> (x,s))
+
+      -- (>>=)  :: ST a -> (a -> ST b) -> ST b
+      st >>= f   = S (\s -> let (x,s') = apply st s in apply (f x) s')
+
+add                     :: String -> ST ()
+add s                   =  S (\(seq, ns) -> ((), (seq |> s, ns)))
+      
+add1                    :: String -> ST ()
+add1 s1                 =  S (\(seq, ns) -> ((), (seq |> s1 |> endl, ns)))
+
+add2                    :: String -> String -> ST ()
+add2 s1 s2              =  S (\(seq, ns) -> ((), (seq |> s1 |> s2 |> endl, ns)))
+
+add3                    :: String -> String -> String -> ST ()
+add3 s1 s2 s3           =  S (\(seq, ns) -> ((), (seq |> s1 |> s2 |> s3 |> endl, ns)))
+
+add4                    :: String -> String -> String -> String -> ST ()
+add4 s1 s2 s3 s4        =  S (\(seq, ns) -> ((), (seq |> s1 |> s2 |> s3 |> s4 |> endl, ns)))
+
+add5                    :: String -> String -> String -> String -> String -> ST ()
+add5 s1 s2 s3 s4 s5     =  S (\(seq, ns) -> ((), (seq |> s1 |> s2 |> s3 |> s4 |> s5 |> endl, ns)))
+
+add6                    :: String -> String -> String -> String -> String -> String -> ST ()
+add6 s1 s2 s3 s4 s5 s6  =  S (\(seq, ns) -> ((), (seq |> s1 |> s2 |> s3 |> s4 |> s5 |> s6 |> endl, ns)))
+      
+addVar                  :: Name -> ST ()
+addVar n                =  S (\(seq, ns) -> ((), (seq , n:ns)))     
+      
+addEndl                 :: ST ()
+addEndl                 = add " \n"
+
+toString                :: ST [String]
+toString                = S (\(seq, ns) -> (toList seq, (seq , ns)))
+
+
+endl                    :: String
+endl                    = " \n"
 
 progToFile            :: Prog -> String -> IO()
 progToFile p s        = writeFile s $ unwords (progToARM p)
@@ -25,8 +74,12 @@ codeToARMFull         :: Code -> [String]
 codeToARMFull c       = [".data" ++ endl] ++ (addVars c (addMain (codeToARM c))) ++ [endl]
 
 codeToARM             :: Code -> [String]
-codeToARM []          = []
-codeToARM (x:xs)      = (instToARM x) ++ (codeToARM xs)
+codeToARM p           = fst $ runState (codeToARM' p) (empty, [])
+
+codeToARM'             :: Code -> ST [String]
+codeToARM' []          = toString
+codeToARM' (x:xs)      = do instToARM x
+                            codeToARM' xs
 
 getRegVal       :: Reg -> String
 getRegVal PC    = "pc"
@@ -35,32 +88,55 @@ getRegVal LR    = "lr"
 getRegVal SP    = "sp"
 getRegVal (R n) = n
 
-instToARM                   :: Inst -> [String]
-instToARM (ADDRESS n)       = []
-instToARM (PUSH i)          = ["\t mov r3, #" ++ show(i) ++ endl, "\t push {r3}" ++ endl]
-instToARM (PUSHV (G n))     = ["\t ldr r3, addr_" ++ n ++ endl, "\t ldr r3, [r3]" ++ endl, "\t push {r3}" ++ endl]
-instToARM (PUSHV r)         = ["\t push {" ++ (getRegVal r) ++ "}" ++ endl]
-instToARM (POP (G n))       = ["\t ldr r3, addr_" ++ n ++ endl, "\t pop {r4}" ++ endl, "\t str r4, [r3]" ++ endl]
-instToARM (POP r)           = ["\t pop {" ++ (getRegVal r) ++ "}" ++ endl]
-instToARM (DO op)           = ["\t pop {r3}" ++ endl, "\t pop {r4}" ++ endl,
-                                              "\t " ++ opToARM(op) ++ " r3, r4, r3" ++ endl, "\t push {r3}" ++ endl]
-instToARM (ADD rf r1 imd)   = ["\t add " ++ (getRegVal rf) ++ ", " ++ (getRegVal r1) ++ ", " ++ (getImdVal imd) ++ endl]
-instToARM (SUB rf r1 imd)   = ["\t sub " ++ (getRegVal rf) ++ ", " ++ (getRegVal r1) ++ ", " ++ (getImdVal imd) ++ endl]
-instToARM (MOV r (VAL i))   = ["\t mov " ++ (getRegVal r) ++ ", #" ++ show i ++ endl]
-instToARM (MOV r (P rs i))  = ["\t add " ++ (getRegVal r) ++ ", " ++ (getRegVal rs) ++ ", #" ++ show i ++ endl]
-instToARM (B cond l)        = ["\t b" ++ (condToARM cond) ++ " " ++ getLabel l ++ endl]
-instToARM (BL cond l)       = ["\t bl" ++ (condToARM cond) ++ " " ++ getLabel l ++ endl]
-instToARM (BX cond r)       = ["\t bx" ++ (condToARM cond) ++ " " ++ getRegVal r ++ endl]
-instToARM (BXL cond r)      = ["\t bxl" ++ (condToARM cond) ++ " " ++ getRegVal r ++ endl]
-instToARM (LABEL l)         = [getLabel l ++ ":" ++ endl]
-instToARM (PRINT)           = ["\t pop {r1}" ++ endl, "\t ldr r0, addr_of_nr" ++ endl, "\t bl printf" ++ endl]
+instToARM                   :: Inst -> ST ()
+instToARM (ADDRESS n)       =    addVar n
+instToARM (PUSH i)          = do add2 "\t mov r3, #" (show i)
+                                 add1 "\t push {r3}"
+                                 
+instToARM (PUSHV (G n))     = do add2 "\t ldr r3, addr_" n
+                                 add1 "\t ldr r3, [r3]"
+                                 add1 "\t push {r3}"
+                                 
+instToARM (PUSHV r)         =    add3 "\t push {" (getRegVal r) "}"
+
+instToARM (POP (G n))       = do add2 "\t ldr r3, addr_" n
+                                 add1 "\t pop {r4}"
+                                 add1 "\t str r4, [r3]"
+
+instToARM (POP r)           =    add3 "\t pop {" (getRegVal r) "}"
+                                 
+instToARM (DO op)           = do add1 "\t pop {r3}"
+                                 add1 "\t pop {r4}"
+                                 add3 "\t " (opToARM op) " r3, r4, r3" 
+                                 add1 "\t push {r3}"
+                                 
+instToARM (ADD rf r1 imd)   =    add6 "\t add " (getRegVal rf) ", " (getRegVal r1) ", " (getImdVal imd)                        
+instToARM (SUB rf r1 imd)   =    add6 "\t sub " (getRegVal rf) ", " (getRegVal r1) ", " (getImdVal imd)
+instToARM (MOV r (VAL i))   =    add4 "\t mov " (getRegVal r) ", #" (show i)
+instToARM (MOV r (P rs i))  =    add6 "\t add " (getRegVal r) ", " (getRegVal rs) ", #" (show i)
+instToARM (B cond l)        =    add4 "\t b" (condToARM cond) " " (getLabel l)
+instToARM (BL cond l)       =    add4 "\t bl" (condToARM cond) " " (getLabel l)
+instToARM (BX cond r)       =    add4 "\t bx" (condToARM cond) " " (getRegVal r)
+instToARM (BXL cond r)      =    add4 "\t bxl" (condToARM cond) " " (getRegVal r)
+instToARM (LABEL l)         =    add2 (getLabel l) ":" 
+
+instToARM (PRINT)           = do add1 "\t pop {r1}" 
+                                 add1 "\t ldr r0, addr_of_nr"  
+                                 add1 "\t bl printf"
+                                 
 instToARM (LDR r1 imd)      = case imd of
-                                P (G n) _ -> ["\t ldr " ++ getRegVal r1 ++ ", addr_" ++ n ++ endl, "\t ldr r3, [r3]" ++ endl]
-                                _         -> ["\t ldr " ++ getRegVal r1 ++ ", " ++ getImdVal imd ++ endl]
+                                P (G n) _ -> do add4 "\t ldr " (getRegVal r1) ", addr_" n 
+                                                add1 "\t ldr r3, [r3]"
+                                _         ->    add4 "\t ldr " (getRegVal r1) ", " (getImdVal imd)
+                                
 instToARM (STR r1 imd)      = case imd of
-                                P (G n) _ -> ["\t ldr r3, addr_" ++ n ++ endl, "\t str " ++ getRegVal r1 ++ ", [r3]" ++ endl]
-                                _         -> ["\t str " ++ getRegVal r1 ++ ", " ++ getImdVal imd ++ endl]
-instToARM (CMPST)           = ["\t pop {r3}" ++ endl, "\t pop {r4}" ++ endl, "\t cmp r3, r4" ++ endl]
+                                P (G n) _ -> do add2 "\t ldr r3, addr_" n 
+                                                add3 "\t str " (getRegVal r1) ", [r3]"
+                                _         ->    add4 "\t str " (getRegVal r1) ", " (getImdVal imd)
+                                
+instToARM (CMPST)           = do add1 "\t pop {r3}"
+                                 add1 "\t pop {r4}"
+                                 add1 "\t cmp r3, r4"
 
 
 getImdVal               :: Imd -> String
