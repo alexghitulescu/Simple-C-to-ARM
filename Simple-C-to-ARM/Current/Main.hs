@@ -17,9 +17,9 @@ import System.Environment (getArgs)
 
 compile                      :: String -> String -> IO()
 compile fileName outputFile  = do prog <- parseFile fileName
-                                  print "compilation successful"
+                                  putStr "compilation successful\n"
                                   progToFile  prog outputFile
-                                  print "code generation successful"
+                                  putStr "code generation successful\n"
 
 compileToScreen          :: String -> IO()
 compileToScreen fileName = do prog <- parseFile fileName
@@ -28,7 +28,7 @@ compileToScreen fileName = do prog <- parseFile fileName
 runInVM           :: String -> IO()
 runInVM fileName  = do prog <- parseFile fileName
                        code <- compE prog
-                       print (execPrint (code))
+                       putStr (execPrint code)
 
 printInst           :: String -> IO()
 printInst fileName  = do prog <- parseFile fileName
@@ -37,6 +37,6 @@ printInst fileName  = do prog <- parseFile fileName
                          
 main = do args <- getArgs
           case args of 
-              []        -> print "no file as argument"
+              []        -> putStr "no file as argument"
               [x]       -> compile x "out.s"
               (x:y:xs)  -> compile x y

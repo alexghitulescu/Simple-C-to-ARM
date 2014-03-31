@@ -56,12 +56,10 @@ addEndl                 :: ST ()
 addEndl                 = add " \n"
 
 comment                 :: String -> ST ()
-comment s               =  S (\(seq, ns) -> ((), (seq |> endl, ns)))
---comment s               =  S (\(seq, ns) -> ((), (seq |> "\t;" |> s |> endl, ns)))
+comment s               =  S (\(seq, ns) -> ((), (seq |> "\t/*" |> s |> "*/" |> endl, ns)))
 
 commentB                :: String -> ST ()
-commentB s               =  S (\(seq, ns) -> ((), (seq |> endl, ns)))
---commentB s              =  S (\(seq, ns) -> ((), (seq |> "\n\t;" |> s |> endl, ns)))
+commentB s              =  S (\(seq, ns) -> ((), (seq |> "\n\t/*" |> s |> "*/"|> endl, ns)))
 
 toString                :: ST [String]
 toString                = S (\(seq, ns) -> (toList seq, (seq , ns)))
@@ -92,7 +90,7 @@ codeToARM' (x:xs)      = do instToARM x
 
 getRegVal       :: Reg -> String
 getRegVal PC    = "pc"
-getRegVal SB    = "r12" 
+getRegVal SB    = "r9" 
 getRegVal LR    = "lr"
 getRegVal SP    = "sp"
 getRegVal (R n) = n
@@ -101,11 +99,11 @@ instToARM                   :: Inst -> ST ()
 instToARM (ADDRESS n)       =    addVar n
 instToARM (PUSH i)          = do commentB ("PUSH " ++ show i)
                                  add2 "\t mov r3, #" (show i)
-                                 add1 "\t push {r3}"
+                                 add1 "\t push {r3}" 
                                  comment "end"
                                  
 instToARM (PUSHV (G n))     = do commentB ("PUSHV " ++ n)
-                                 add2 "\t ldr r3, addr_" n
+                                 add2 "\t ldr r3, addr_" n 
                                  add1 "\t ldr r3, [r3]"
                                  add1 "\t push {r3}"
                                  comment "end"
@@ -124,7 +122,7 @@ instToARM (DO op)           = do commentB ("DO " ++ (opToARM op))
                                  add1 "\t pop {r3}"
                                  add1 "\t pop {r4}"
                                  add3 "\t " (opToARM op) " r3, r4, r3" 
-                                 add1 "\t push {r3}"
+                                 add1 "\t push {r3}" 
                                  comment "end"
               
 instToARM (ADD SP r1 imd)   =    add4 "\t add sp, " (getRegVal r1) ", " (getImdVal imd (-4))
@@ -145,21 +143,21 @@ instToARM (BXL cond r)      =    add4 "\t bxl" (condToARM cond) " " (getRegVal r
 instToARM (LABEL l)         =    add2 (getLabel l) ":" 
 
 instToARM (PRINT)           = do commentB "PRINT"
-                                 add1 "\t pop {r1}" 
+                                 add1 "\t pop {r1}"
                                  add1 "\t ldr r0, addr_of_nr"  
                                  add1 "\t bl printf"
                                  comment "end"
                                  
 instToARM (LDR r1 imd)      = case imd of
                                 P (G n) _ -> do commentB ("LDR " ++ n ++ " in " ++ (getRegVal r1))
-                                                add2 "\t ldr r3, addr_" n 
+                                                add2 "\t ldr r3, addr_" n
                                                 add3 "\t ldr " (getRegVal r1) ", [r3]"
                                                 comment "end"
                                 _         ->    add4 "\t ldr " (getRegVal r1) ", " (getImdVal imd (-4))
                                 
 instToARM (STR r1 imd)      = case imd of
                                 P (G n) _ -> do commentB ("STR " ++ n ++ " from " ++ (getRegVal r1))
-                                                add2 "\t ldr r3, addr_" n 
+                                                add2 "\t ldr r3, addr_" n
                                                 add3 "\t str " (getRegVal r1) ", [r3]"
                                                 comment "end"
                                 _         ->    add4 "\t str " (getRegVal r1) ", " (getImdVal imd (-4))
@@ -167,7 +165,7 @@ instToARM (STR r1 imd)      = case imd of
 instToARM (CMPST)           = do commentB "CMPST"
                                  add1 "\t pop {r3}"
                                  add1 "\t pop {r4}"
-                                 add1 "\t cmp r3, r4"
+                                 add1 "\t cmp r3, r4" 
                                  comment "end"
 
 

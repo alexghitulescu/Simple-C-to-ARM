@@ -156,7 +156,7 @@ parseF inp = case parse mainParser "" inp of
              { Left err ->  do { print err
                                ; return (PSeq [])
                                }
-             ; Right ans -> do { print "parse successful\n"
+             ; Right ans -> do { print "parse successful"
                                ; return ans
                                }
              }

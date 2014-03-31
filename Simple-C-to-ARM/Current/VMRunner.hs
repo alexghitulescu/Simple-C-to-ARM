@@ -5,28 +5,32 @@ module VMRunner (
 ) where
 
 import Prelude hiding (EQ, LT, GT, compare)
+import Data.Array.IArray
+import Data.Foldable (toList)
+import Data.List (intercalate)
 import AST
 import VMInst
 import ASTCompiler
 import SampleProg
-import Data.Array.IArray
+import qualified Data.Sequence as Sq
 
 execM                           :: Code -> State
-execM c                         = fst $ runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c), 0, [], stack, NONE')
+execM c                         = fst $ runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c), 0, [], stack, NONE', Sq.empty)
                                                                                         where stack = array (0, 1000) [(i, 0) | i <- [0..1000]]
 
 execPrint                       :: Code -> String
 execPrint c                     = "(pc: " ++ show(pc) ++ ", sb: " ++ show(sb) ++ ", lr: " ++ show(lr) ++ ", sp: " ++ show(sp) ++
-                                  ", mem: " ++ show(m) ++ ", stack: " ++ show(stack) ++ ", flag: " ++ show(cflag) 
+                                  ", mem: " ++ show(m) ++ ", stack: " ++ show(stack) ++ ", flag: " ++ show(cflag) ++ "\n stdout:\n" ++
+                                  intercalate "" (toList stdout)
                                         where   stack = take (fromInteger sp) (assocs s)
-                                                (pc, sb, lr, sp, m, s, cflag) = execM c
+                                                (pc, sb, lr, sp, m, s, cflag, stdout) = execM c
 -- State Monad 
 -- ===========
 
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Integer, Integer, Integer, Integer, Mem, Stack Integer, CFlag)
+type State    = (Integer, Integer, Integer, Integer, Mem, Stack Integer, CFlag, Sq.Seq String)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -41,72 +45,75 @@ instance Monad ST where
 
 
 next          :: ST ()
-next          =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc + 1, sb, lr, sp, m, s, cflag)))
+next          =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc + 1, sb, lr, sp, m, s, cflag, stdout)))
 
 nothing       :: ST ()
-nothing       =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, m, s, cflag)))
+nothing       =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 pop           :: ST Integer
-pop           =  S (\(pc, sb, lr, sp, m, s, cflag) -> (s ! sp, (pc, sb, lr, sp - 1, m, s, cflag)))
+pop           =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (s ! sp, (pc, sb, lr, sp - 1, m, s, cflag, stdout)))
 
 push          :: Integer -> ST ()
-push i        =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, i)], cflag)))  
+push i        =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, i)], cflag, stdout)))  
 
 --pushV         :: Name -> ST ()
 --pushV n       =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, find n m)], cflag)))
 
 put           :: (Name, Integer) -> ST ()
-put (n, i)    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, (n, i):(remP n m), s, cflag)))
+put (n, i)    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, (n, i):(remP n m), s, cflag, stdout)))
 
 retrieve      :: Code -> ST Inst
-retrieve c    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (if pc < toInteger(length c) then c !! fromInteger(pc) else HALT, (pc, sb, lr, sp, m, s, cflag)))
+retrieve c    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (if pc < toInteger(length c) then c !! fromInteger(pc) else HALT, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 jump          :: Code -> Label -> ST ()
-jump c l      =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (elemIndex 0 (LABEL l) c, sb, lr, sp, m, s, cflag)))
+jump c l      =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (elemIndex 0 (LABEL l) c, sb, lr, sp, m, s, cflag, stdout)))
 
 jumpI          :: Code -> Integer -> ST ()
-jumpI c i      =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (i, sb, lr, sp, m, s, cflag)))
+jumpI c i      =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (i, sb, lr, sp, m, s, cflag, stdout)))
 
 mem           :: ST Mem
-mem           =  S (\(pc, sb, lr, sp, m, s, cflag) -> (m, (pc, sb, lr, sp, m, s, cflag)))
+mem           =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (m, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 state         :: ST State
-state         =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((pc, sb, lr, sp, m, s, cflag), (pc, sb, lr, sp, m, s, cflag)))
+state         =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((pc, sb, lr, sp, m, s, cflag, stdout), (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 savePCToLR    :: ST ()
-savePCToLR    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, pc, sp, m, s, cflag)))
+savePCToLR    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, pc, sp, m, s, cflag, stdout)))
 
 setCflag      :: CFlag -> ST ()
-setCflag flag =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, m, s, flag)))
+setCflag flag =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, m, s, flag, stdout)))
 
 validCflag    :: Cond -> ST Bool
-validCflag cf =  S (\(pc, sb, lr, sp, m, s, cflag) -> (compareCF cflag cf, (pc, sb, lr, sp, m, s, cflag)))
+validCflag cf =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (compareCF cflag cf, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 getRegVal       :: Reg -> ST Integer
-getRegVal PC    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (pc, (pc, sb, lr, sp, m, s, cflag)))
-getRegVal SB    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (sb, (pc, sb, lr, sp, m, s, cflag)))
-getRegVal LR    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (lr, (pc, sb, lr, sp, m, s, cflag)))
-getRegVal SP    =  S (\(pc, sb, lr, sp, m, s, cflag) -> (sp, (pc, sb, lr, sp, m, s, cflag)))
-getRegVal (R n) =  S (\(pc, sb, lr, sp, m, s, cflag) -> (find n m, (pc, sb, lr, sp, m, s, cflag)))
-getRegVal (G n) =  S (\(pc, sb, lr, sp, m, s, cflag) -> (find n m, (pc, sb, lr, sp, m, s, cflag)))
+getRegVal PC    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (pc, (pc, sb, lr, sp, m, s, cflag, stdout)))
+getRegVal SB    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (sb, (pc, sb, lr, sp, m, s, cflag, stdout)))
+getRegVal LR    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (lr, (pc, sb, lr, sp, m, s, cflag, stdout)))
+getRegVal SP    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (sp, (pc, sb, lr, sp, m, s, cflag, stdout)))
+getRegVal (R n) =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (find n m, (pc, sb, lr, sp, m, s, cflag, stdout)))
+getRegVal (G n) =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (find n m, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 setRegVal         :: Reg -> Integer -> ST ()
-setRegVal PC i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (i, sb, lr, sp, m, s, cflag)))
-setRegVal SB i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, i, lr, sp, m, s, cflag)))
-setRegVal LR i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, i, sp, m, s, cflag)))
-setRegVal SP i    =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, i, m, s, cflag)))
+setRegVal PC i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (i, sb, lr, sp, m, s, cflag, stdout)))
+setRegVal SB i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, i, lr, sp, m, s, cflag, stdout)))
+setRegVal LR i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, i, sp, m, s, cflag, stdout)))
+setRegVal SP i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, i, m, s, cflag, stdout)))
 setRegVal (R n) i =  put (n, i)
 setRegVal (G n) i =  put (n, i)
 
 load            :: Integer -> ST Integer
-load i          =  S (\(pc, sb, lr, sp, m, s, cflag) -> (s ! i, (pc, sb, lr, sp, m, s, cflag)))
+load i          =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (s ! i, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 store           :: Integer -> Integer -> ST ()
-store pos i     =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag)))
+store pos i     =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag, stdout)))
 
 start           :: Code -> ST State
 start c         = do addAddress (filter (isAddress) c)
                      execCode c
+                     
+printToStd        :: String -> ST ()
+printToStd string = S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, m, s, cflag, stdout Sq.|> string)))
 
 execCode        :: Code -> ST State
 execCode c      = do inst <- retrieve c
@@ -151,7 +158,8 @@ execCode c      = do inst <- retrieve c
                                                                 
                                   (LABEL l)               -> execCode c
                                                                 
-                                  (PRINT)                 -> do pop
+                                  (PRINT)                 -> do s <- pop
+                                                                printToStd (show s ++ "\n")
                                                                 execCode c
                                                                 
                                   (HALT)                  -> do s <- state
