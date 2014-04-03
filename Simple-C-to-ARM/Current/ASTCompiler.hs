@@ -93,7 +93,8 @@ compProg (Fun n ns st)          = do addEnvLevel
                                      remEnvLevel
                                      --save SB, LR and execute the code and increment SP by the number of args.
                                      return ([LABEL (N n), PUSHV SB, MOV SB (P SP 0), PUSHV LR] ++ code ++ 
-                                                [SUB SP SP (VAL (envDis - 2)), POP LR, POP SB, SUB SP SP (VAL (toInteger(length ns))), BX NONE LR]) 
+                                                [SUB SP SP (VAL (envDis - 2)), POP LR, POP SB, SUB SP SP (VAL (toInteger(length ns)))
+                                                ,PUSHV (R "r0"), BX NONE LR]) 
                                                 -- restore SP to before arguments
 compProg (PSeq [    ])          = return []
 compProg (PSeq (x:xs))          = do code <- compProg x
@@ -129,8 +130,11 @@ compStmt (If e p1 p2)           = do lb <- fresh
                                      code' <- compStmt p2
                                      expr <- compExpr e
                                      return (expr ++ (jumpz lb) ++ code ++ [B NONE lb', LABEL lb] ++ code' ++ [LABEL lb'])
-compStmt (Apply n e)            = do exprs <- compExprs e
-                                     return (exprs ++ [BL NONE (N n)])
+compStmt (Ex e)                 = do expr <- compExpr e
+                                     return (expr ++ [POP (R "r12")])
+compStmt (Return e)             = do expr <- compExpr e
+                                     return (expr ++ [POP (R "r0")])
+              
 
 jumpz                           :: Label -> Code
 jumpz lb                        = [PUSH 0, CMPST, B EQ lb]
@@ -148,3 +152,6 @@ compExpr (Var v)              = do posV <- getEnvVar v
 compExpr (App op e1 e2)       = do expr1 <- compExpr e1
                                    expr2 <- compExpr e2
                                    return (expr1 ++ expr2 ++ [DO op])
+compExpr (Apply n e)          = do exprs <- compExprs e
+                                   return (exprs ++ [BL NONE (N n)])
+                                  

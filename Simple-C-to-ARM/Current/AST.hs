@@ -17,16 +17,17 @@ data Prog             =  GlobalVar Name
                       |  PSeq [Prog]
                          deriving Show
 
-data Stmt             =  LocalVar Name  
+data Stmt             =  Ex Expr
+                      |  LocalVar Name  
                       |  Assign Name Expr
                       |  If Expr Stmt Stmt
                       |  While Expr Stmt
                       |  Seqn [Stmt]
                       |  Print Expr
-                      |  Apply Name [Expr]
+                      |  Return Expr
                          deriving Show
 
-data Expr             =  Val Integer | Var Name | App Op Expr Expr 
+data Expr             =  Val Integer | Var Name | App Op Expr Expr | Apply Name [Expr]
                          deriving Show
 
 

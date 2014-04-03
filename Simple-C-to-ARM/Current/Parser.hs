@@ -27,7 +27,7 @@ def = javaStyle{ commentStart = "/*"
               , identLetter = alphaNum <|> char '_'
               , opStart = oneOf "~&=:"
               , opLetter = oneOf "~&=:"
-              , reservedNames = ["true", "false", "print"] ++ types ++ conditional
+              , reservedNames = ["true", "false", "print", "return"] ++ types ++ conditional
               , reservedOpNames = ["~", "&", "=", "+=", "+", "-", "*"] ++ comparators 
               , caseSensitive = True
               }
@@ -49,9 +49,9 @@ exprParser :: Parser Expr
 exprParser = buildExpressionParser table term <?> "expression"
 table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
         , [Infix (m_reservedOp "&" >> return (Duo And)) AssocLeft]
-        ,-} [Infix (m_reservedOp "+" >> return (App Add)) AssocLeft]
+        ,-} [Infix (m_reservedOp "*" >> return (App Mul)) AssocLeft]
+        , [Infix (m_reservedOp "+" >> return (App Add)) AssocLeft]
         , [Infix (m_reservedOp "-" >> return (App Sub)) AssocLeft]
-        , [Infix (m_reservedOp "*" >> return (App Mul)) AssocLeft]
         {-, [Infix (m_reservedOp "==" >> return (Cond CEQ)) AssocNone]
         , [Infix (m_reservedOp "!=" >> return (Cond CNE)) AssocNone]
         , [Infix (m_reservedOp "<"  >> return (Cond CLT)) AssocNone]
@@ -60,10 +60,12 @@ table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
         , [Infix (m_reservedOp ">=" >> return (Cond CGE)) AssocNone]-}
         ]
 term = m_parens exprParser
+       <|> try funcParserExpr
        <|> fmap Var m_identifier
        <|> fmap Val m_integer
        <|> (m_reserved "true" >> return (Val 1))
        <|> (m_reserved "false" >> return (Val 0))
+       
  
 asgnParser   :: String -> Parser Stmt
 asgnParser v =     do { m_reservedOp "="
@@ -77,9 +79,15 @@ asgnParser v =     do { m_reservedOp "="
 
 funcParser   :: String -> Parser Stmt
 funcParser v =    do { e <- m_parens ( m_commaSep exprParser )
-                     ; return (Apply v e)
+                     ; return (Ex (Apply v e))
                      }
 
+funcParserExpr  :: Parser Expr
+funcParserExpr  = do { v <- m_identifier
+                     ; e <- m_parens ( m_commaSep exprParser )
+                     ; return (Apply v e)
+                     }
+                     
 forParser    :: Parser (String, Stmt, Expr, Stmt)
 forParser    =  do { m_reserved "int"
                    ; d <- m_identifier
@@ -121,6 +129,10 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
               <|> do { m_reserved "print"
                      ; b <- m_parens exprParser
                      ; return (Print b)
+                     }
+              <|> do { m_reserved "return"
+                     ; e <- m_parens exprParser
+                     ; return (Return e)
                      }
                   
 

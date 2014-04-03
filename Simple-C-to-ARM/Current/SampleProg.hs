@@ -11,7 +11,7 @@ import AST
 test                  :: Prog
 test                  = PSeq[
                         GlobalVar "A",
-                        Fun "main" [] (Apply "test" []),
+                        Fun "main" [] (Ex (Apply "test" [])),
                         Fun "test" [] (Seqn [Assign "A" (App Mul (Val 5) (Val 5))])
                         ]
 
@@ -33,12 +33,12 @@ test2                 = PSeq [
 					Assign "c" (App Sub (Var "c") (Val 1))]),
                                 Assign "result" (Var "b")]),
                         Fun "main" [] (Seqn [
-                                Apply "fib" [Val 16],
+                                Ex (Apply "fib" [Val 16]),
                                 Print(Var "result")])]
                         
 fac                   :: Integer -> Prog
 fac n                 = PSeq[
-                        Fun "main" [] (Apply "fac" [Val n]),
+                        Fun "main" [] (Ex (Apply "fac" [Val n])),
                         Fun "fac" ["B"] (Seqn [LocalVar "A",
                                Assign "A" (Val 1),
                                While (Var "B") (Seqn
@@ -59,5 +59,5 @@ fib n                 = PSeq[
                                    Assign "A" (Var "T"),
                                    Assign "C" (App Sub (Var "C") (Val 1))]){-,
                                Print (Var "B")-}]),
-                        Fun "main" [] (Seqn [Apply "fib" [], Print (Var "B")])
+                        Fun "main" [] (Seqn [Ex (Apply "fib" []), Print (Var "B")])
                         ]
