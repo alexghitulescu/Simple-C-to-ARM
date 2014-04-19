@@ -83,10 +83,10 @@ codeToARMFull c       = [".data" ++ endl] ++ (addVars c (addMain (codeToARM c)))
 codeToARM             :: Code -> [String]
 codeToARM p           = fst $ runState (codeToARM' p) (empty, [])
 
-codeToARM'             :: Code -> ST [String]
-codeToARM' []          = toString
-codeToARM' (x:xs)      = do instToARM x
-                            codeToARM' xs
+codeToARM'            :: Code -> ST [String]
+codeToARM' []         = toString
+codeToARM' (x:xs)     = do instToARM x
+                           codeToARM' xs
 
 getRegVal       :: Reg -> String
 getRegVal PC    = "pc"

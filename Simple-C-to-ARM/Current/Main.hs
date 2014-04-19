@@ -10,7 +10,7 @@ import AST
 import Parser
 import CodeGen
 import VMRunner
-import SampleProg
+--import SampleProg
 import ASTCompiler
 import VMInst
 import System.Environment (getArgs)

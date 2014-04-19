@@ -8,11 +8,11 @@ import Prelude hiding (EQ, LT, GT, compare)
 import Data.Array.IArray
 import Data.Foldable (toList)
 import Data.List (intercalate)
+import qualified Data.Sequence as Sq
 import AST
 import VMInst
 import ASTCompiler
-import SampleProg
-import qualified Data.Sequence as Sq
+--import SampleProg
 
 execM                           :: Code -> State
 execM c                         = fst $ runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c), 0, [], stack, NONE', Sq.empty)

@@ -61,7 +61,7 @@ table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
         ]
 term = m_parens exprParser
        <|> try funcParserExpr
-       <|> fmap Var m_identifier
+       <|> fmap Var m_identifier 
        <|> fmap Val m_integer
        <|> (m_reserved "true" >> return (Val 1))
        <|> (m_reserved "false" >> return (Val 0))
