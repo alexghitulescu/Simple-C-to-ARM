@@ -8,6 +8,7 @@ import Text.Parsec.String
 import Text.Parsec.Expr
 import Text.Parsec.Token
 import Text.Parsec.Language
+import Text.Parsec.Pos
 import AST
 
 types :: [String]
@@ -49,9 +50,9 @@ exprParser :: Parser Expr
 exprParser = buildExpressionParser table term <?> "expression"
 table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
         , [Infix (m_reservedOp "&" >> return (Duo And)) AssocLeft]
-        ,-} [Infix (m_reservedOp "*" >> return (App Mul)) AssocLeft]
-        , [Infix (m_reservedOp "+" >> return (App Add)) AssocLeft]
-        , [Infix (m_reservedOp "-" >> return (App Sub)) AssocLeft]
+        ,-} [Infix ( do {pos <- getPosition  ; m_reservedOp "*" ; return (App pos Mul)}) AssocLeft]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "+" ; return (App pos Add)}) AssocLeft]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "-" ; return (App pos Sub)}) AssocLeft]
         {-, [Infix (m_reservedOp "==" >> return (Cond CEQ)) AssocNone]
         , [Infix (m_reservedOp "!=" >> return (Cond CNE)) AssocNone]
         , [Infix (m_reservedOp "<"  >> return (Cond CLT)) AssocNone]
@@ -61,10 +62,20 @@ table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
         ]
 term = m_parens exprParser
        <|> try funcParserExpr
-       <|> fmap Var m_identifier 
-       <|> fmap Val m_integer
-       <|> (m_reserved "true" >> return (Val 1))
-       <|> (m_reserved "false" >> return (Val 0))
+       <|> do { pos <- getPosition
+              ; fmap (Var pos) m_identifier
+              }
+       <|> do { pos <- getPosition
+              ; fmap (Val pos) m_integer
+              }
+       <|> do { pos <- getPosition
+              ; m_reserved "true"
+              ; return (Val pos 1)
+              }
+       <|> do { pos <- getPosition
+              ; m_reserved "false" 
+              ; return (Val pos 0)
+              }
        
  
 asgnParser   :: String -> Parser Stmt
@@ -146,10 +157,11 @@ mainParser = m_whiteSpace >> progParser <* eof
                      }
               <|> do { try decl
                      }
-      decl =      do { m_reserved "int"
+      decl =      do { pos <- getPosition
+                     ; m_reserved "int"
                      ; v <- m_identifier
                      ; m_semi
-                     ; return (GlobalVar v)
+                     ; return (GlobalVar v pos)
                      }
       func =      do { m_reserved "int"
                      ; v <- m_identifier

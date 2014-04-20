@@ -7,6 +7,7 @@ module ASTCompiler (
 import Prelude hiding (EQ)
 import Data.Foldable (toList)
 import Data.Sequence
+import Text.Parsec.Pos
 import AST
 import Environment
 import VMInst
@@ -73,7 +74,16 @@ getEnvVar               :: Name -> ST Imd
 getEnvVar q             =  S (\(n, env, e, c) -> case env `getVar` q of 
                                                 Nothing -> (P SB 0, (n, env, ("could not find " ++ (show q)):e, c))
                                                 Just p  -> (p, (n, env, e, c)))
-                       
+
+getEnvVar2               :: Name -> SourcePos -> ST Imd
+getEnvVar2 q p           = do env <- getEnv 
+                              case env `getVar` q of 
+                                                Nothing -> do let l = sourceLine p
+                                                              let c = sourceColumn p
+                                                              writeError ("could not find " ++ (show q) ++ "line: " ++ show l ++ ", column: " ++ show c)
+                                                              return (P SB 0)
+                                                Just p  -> return p
+                                                
 setEnvDisplacement      :: Integer -> ST ()
 setEnvDisplacement i    =  S (\(n, env, e, c) -> ((), (n, env `setDisplacement` i, e, c)))
 
@@ -83,6 +93,9 @@ getEnvDisplacement      =  S (\(n, env, e, c) -> (displacement env, (n, env, e, 
 addEnvDisplacement      :: Integer -> ST ()
 addEnvDisplacement i    =  S (\(n, env, e, c) -> ((), (n, env `addDisplacement` i, e, c)))
 
+getEnv                  :: ST (Env Imd)
+getEnv                  =  S (\(n, env, e, c) -> (env, (n, env, e, c)))
+
 
 -- [names of arguments] -> where should in start
 addFuncArgs             :: [Name] -> Integer -> ST ()
@@ -91,14 +104,13 @@ addFuncArgs (n:ns) i    = do addEnvVar n (P SB (-i))
                              addFuncArgs ns (i + 1)
 
 compProg                        :: Prog -> ST ()
-compProg (GlobalVar n)          = do addEnvVar n (P (G n) 0)
+compProg (GlobalVar n pos)      = do addEnvVar n (P (G n) 0)
                                      emit       (ADDRESS n)
-compProg (Fun n ns st)          = do addEnvLevel
+compProg (Fun n ns st )         = do addEnvLevel
                                      --take space for arguments on the stack
                                      addFuncArgs ns 1
                                      setEnvDisplacement 2
                                      envDis <- getEnvDisplacement
-                                     remEnvLevel
                                      --save SB, LR and execute the code and increment SP by the number of args.
                                      emitCode   [LABEL (N n), PUSHV SB, MOV SB (P SP 0), PUSHV LR]
                                      compStmt st
@@ -106,6 +118,7 @@ compProg (Fun n ns st)          = do addEnvLevel
                                      emit       (SUB SP SP (VAL (toInteger(Prelude.length ns))))
                                      emitCode   [PUSHV (R "r0"), BX NONE LR]
                                      -- restore SP to before arguments
+                                     remEnvLevel
 compProg (PSeq [    ])          = return ()
 compProg (PSeq (x:xs))          = do compProg x
                                      compProg (PSeq xs)
@@ -152,13 +165,13 @@ compStmt (Return e)             = do compExpr e
 jumpz                           :: Label -> Code
 jumpz lb                        = [PUSH 0, CMPST, B EQ lb]
                                      
-transformExpr                           :: Expr -> ST [Expr]
+{-transformExpr                           :: Expr -> ST [Expr]
 transformExpr (Val n)                   = return [Val n]
 transformExpr (Var v)                   = return [Var v]
 transformExpr (App op (Val m) (Val n))  = return [Val (compOp m n op)]
 transformExpr (App op (Val m) (Var n))  = return [App op (Val m) (Var n)]
 transformExpr (App op (Var m) (Val n))  = return [App op (Var m) (Val n)]
-transformExpr (App op (Var m) (Var n))  = return [App op (Var m) (Var n)]
+transformExpr (App op (Var m) (Var n))  = return [App op (Var m) (Var n)]-}
 
                                      
 compExprs                     :: [Expr] -> ST ()
@@ -167,11 +180,11 @@ compExprs (e:es)              = do compExpr e
                                    compExprs es
                                       
 compExpr                      :: Expr -> ST ()
-compExpr (Val n)              = emit (PUSH n)
-compExpr (Var v)              = do posV <- getEnvVar v
+compExpr (Val pos n)          = emit (PUSH n)
+compExpr (Var pos v)          = do posV <- getEnvVar2 v pos
                                    emit (LDR (R "r5") posV)
                                    emit (PUSHV (R "r5"))
-compExpr (App op e1 e2)       = do compExpr e1
+compExpr (App pos op e1 e2)   = do compExpr e1
                                    compExpr e2
                                    emit (DO op)
 compExpr (Apply n e)          = do compExprs e
