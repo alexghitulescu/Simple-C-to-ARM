@@ -42,4 +42,4 @@ data Type             =  Int | Str
                          deriving Show
 
 data Op               =  Add | Sub | Mul | Div
-                         deriving (Show , Eq, Ord)
+                         deriving (Show , Eq)

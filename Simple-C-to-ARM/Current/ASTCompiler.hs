@@ -9,20 +9,20 @@ import Data.Foldable (toList)
 import Data.Sequence
 import Text.Parsec.Pos
 import AST
+import IAST
 import Environment
+import DAG
 import VMInst
 
-comp                            :: Prog -> Code
-comp p                          = toList code
-                                        where (_, (_, _, err, code)) = runState' p
+comp                            :: Prog -> IProg
+comp p                          = fst $ runState' p
 
-compE                           :: Prog -> IO Code
+compE                           :: Prog -> IO IProg
 compE p                         = case err of
-                                        [] -> do print "no error"
-                                                 return $ toList code
+                                        [] -> return prog
                                         xs -> do print xs
-                                                 return []
-                                   where (_, (_, _, err, code)) = runState' p
+                                                 return (IPSeq [])
+                                   where (prog, (_, _, err, _)) = runState' p
                                               
 runState' p = runState (compProg p) (0, emptyTop, [], empty)                                              
 
@@ -49,8 +49,8 @@ instance Monad ST where
       
 -- The function that generates the fresh labels. It is of type ST showing that it has a hidden state. 
 
-fresh                   :: ST Label
-fresh                   =  S (\(n, env, e, c) -> (V n, (n+1, env, e, c)))
+fresh                   :: ST Name
+fresh                   =  S (\(n, env, e, c) -> ("@temp@" ++ show(n), (n+1, env, e, c)))
 
 emit                    :: Inst -> ST ()
 emit i                  = S (\(n, env, e, c) -> ((), (n+1, env, e, c |> i)))
@@ -96,103 +96,59 @@ addEnvDisplacement i    =  S (\(n, env, e, c) -> ((), (n, env `addDisplacement` 
 getEnv                  :: ST (Env Imd)
 getEnv                  =  S (\(n, env, e, c) -> (env, (n, env, e, c)))
 
+-- [names of arguments] -> where should it start
+addFuncArgs             :: [Name] -> ST ()
+addFuncArgs []          = return ()
+addFuncArgs (n:ns)      = do addEnvVar n (P SB (0))
+                             addFuncArgs ns
 
--- [names of arguments] -> where should in start
-addFuncArgs             :: [Name] -> Integer -> ST ()
-addFuncArgs [] _        = return ()
-addFuncArgs (n:ns) i    = do addEnvVar n (P SB (-i))
-                             addFuncArgs ns (i + 1)
-
-compProg                        :: Prog -> ST ()
-compProg (GlobalVar n pos)      = do addEnvVar n (P (G n) 0)
-                                     emit       (ADDRESS n)
-compProg (Fun n ns st )         = do addEnvLevel
-                                     --take space for arguments on the stack
-                                     addFuncArgs ns 1
-                                     setEnvDisplacement 2
-                                     envDis <- getEnvDisplacement
-                                     --save SB, LR and execute the code and increment SP by the number of args.
-                                     emitCode   [LABEL (N n), PUSHV SB, MOV SB (P SP 0), PUSHV LR]
-                                     compStmt st
-                                     emitCode   [SUB SP SP (VAL (envDis - 2)), POP LR, POP SB]
-                                     emit       (SUB SP SP (VAL (toInteger(Prelude.length ns))))
-                                     emitCode   [PUSHV (R "r0"), BX NONE LR]
-                                     -- restore SP to before arguments
+compProg                        :: Prog -> ST IProg
+compProg (GlobalVar n pos)      = return (IGlobalVar n)
+compProg (Fun n ns st)          = do addEnvLevel
+                                     addFuncArgs ns
+                                     stmt <- compStmt st
                                      remEnvLevel
-compProg (PSeq [    ])          = return ()
-compProg (PSeq (x:xs))          = do compProg x
-                                     compProg (PSeq xs)
+                                     return (IFun n ns stmt)
+compProg (PSeq [])              = return (IPSeq [])
+compProg (PSeq xs)              = do list <- mapM compProg xs
+                                     return (IPSeq list)
                 
-compStmt                        :: Stmt -> ST ()
-compStmt (LocalVar n)           = do dis <- getEnvDisplacement
-                                     addEnvVar n (P SB dis)
-                                     addEnvDisplacement 1
-                                     emit       (ADD SP SP (VAL 1))
-compStmt (Assign v e)           = do posV <- getEnvVar v
-                                     compExpr e
-                                     emitCode   [POP (R "r5"), STR (R "r5") posV]
-compStmt (Print e)              = do compExpr e
-                                     emit       PRINT
-compStmt (Seqn [    ])          = return ()
-compStmt (Seqn (x:xs))          = do compStmt x
-                                     compStmt (Seqn xs)
-compStmt (While e p)            = do lb <- fresh
-                                     lb' <- fresh
-                                     emit (LABEL lb) 
-                                     compExpr e 
-                                     emitCode   (jumpz lb')
-                                     compStmt p
-                                     emitCode   [B NONE lb, LABEL lb']
-compStmt (If e p1 (Seqn []))    = do lb <- fresh
-                                     compExpr e
-                                     emitCode (jumpz lb)
-                                     compStmt p1
-                                     emit (LABEL lb)
-compStmt (If e p1 p2)           = do lb <- fresh
-                                     lb' <- fresh
-                                     compExpr e
-                                     emitCode (jumpz lb) 
-                                     compStmt p1 
-                                     emitCode [B NONE lb', LABEL lb] 
-                                     compStmt p2 
-                                     emit (LABEL lb')
-compStmt (Ex e)                 = do compExpr e
-                                     emit (SUB SP SP (VAL 1))
-compStmt (Return e)             = do compExpr e
-                                     emit (POP (R "r0"))
+compStmt                        :: Stmt -> ST IStmt
+compStmt (LocalVar n)           = do addEnvVar n (P SB 0)
+                                     return (ILocalVar n)
+compStmt (Assign n e)           = do posV <- getEnvVar n
+                                     compAssign n e
+compStmt (Print e)              = do let (seq, var) = transform e
+                                     let stmt = toList $ seq |> (IPrint var)
+                                     return (ISeqn stmt)
+compStmt (Seqn [])              = return (ISeqn [])
+compStmt (Seqn xs)              = do list <- mapM compStmt xs
+                                     return (ISeqn (list))
+compStmt (While e p)            = do let (seq, var) = transform e
+                                     let stmt = toList seq 
+                                     p' <- compStmt p
+                                     return (IWhile stmt var p')
+compStmt (If e p1 p2)           = do p1' <- compStmt p1
+                                     p2' <- compStmt p2
+                                     let (seq, var) = transform e
+                                     let stmt = toList $ seq |> (IIf var p1' p2')
+                                     return (ISeqn stmt)
+compStmt (Ex e)                 = do let (seq, var) = transform e
+                                     return (ISeqn $ toList seq)
+compStmt (Return e)             = do let (seq, var) = transform e
+                                     let stmt = toList $ seq |> (IReturn var)
+                                     return (ISeqn stmt)
 
+                                     
+compAssign                      :: Name -> Expr -> ST IStmt
+compAssign n (Val _ i)          = return (IAssign n (IVal i))
+compAssign n (Var pos v)        = do posV <- getEnvVar2 v pos
+                                     return (IAssign n (IVar v))
+compAssign n expr               = do let (seq, var) = transform expr
+                                     let stmt = toList $ seq |> (IAssign n var)
+                                     return (ISeqn stmt)
+                                     
               
 jumpz                           :: Label -> Code
 jumpz lb                        = [PUSH 0, CMPST, B EQ lb]
-                                     
-{-transformExpr                           :: Expr -> ST [Expr]
-transformExpr (Val n)                   = return [Val n]
-transformExpr (Var v)                   = return [Var v]
-transformExpr (App op (Val m) (Val n))  = return [Val (compOp m n op)]
-transformExpr (App op (Val m) (Var n))  = return [App op (Val m) (Var n)]
-transformExpr (App op (Var m) (Val n))  = return [App op (Var m) (Val n)]
-transformExpr (App op (Var m) (Var n))  = return [App op (Var m) (Var n)]-}
-
-                                     
-compExprs                     :: [Expr] -> ST ()
-compExprs []                  = return ()
-compExprs (e:es)              = do compExpr e
-                                   compExprs es
-                                      
-compExpr                      :: Expr -> ST ()
-compExpr (Val pos n)          = emit (PUSH n)
-compExpr (Var pos v)          = do posV <- getEnvVar2 v pos
-                                   emit (LDR (R "r5") posV)
-                                   emit (PUSHV (R "r5"))
-compExpr (App pos op e1 e2)   = do compExpr e1
-                                   compExpr e2
-                                   emit (DO op)
-compExpr (Apply n e)          = do compExprs e
-                                   emit (BL NONE (N n))
-
-compOp          :: Integer -> Integer -> Op -> Integer
-compOp m n Add  = m + n
-compOp m n Sub  = m - n
-compOp m n Mul  = m * n
-compOp m n Div  = m `div` n
                                      

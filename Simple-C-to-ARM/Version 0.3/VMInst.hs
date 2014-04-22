@@ -39,7 +39,7 @@ data Inst             =  ADDRESS Name
                       |  B Cond Label
                       |  BL Cond Label
                       |  LABEL Label
-                      |  PRINT Reg
+                      |  PRINT
                       |  HALT
                       |  LDR Reg Imd
                       |  LDRV Reg Integer
@@ -47,7 +47,7 @@ data Inst             =  ADDRESS Name
                       |  CMPST
                          deriving (Show, Eq)
 
-data Reg              = SB | PC | LR | SP | TEMP | R Name | G Name deriving (Show, Eq)
+data Reg              = SB | PC | LR | SP | R Name | G Name deriving (Show, Eq)
 
 data Imd              = P Reg Integer | VAL Integer deriving (Show, Eq)
 

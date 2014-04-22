@@ -2,7 +2,6 @@ module Environment (
     Env (..),
     addVar,
     getVar,
-    getVarCLevel,
     addLevel,
     removeLevel,
     emptyTop,
@@ -40,11 +39,7 @@ getVar  EMPTY_ENV  n            = Nothing
 getVar (E map _ e) n            = case M.lookup n map of
                                         Nothing -> getVar e n
                                         Just p  -> Just p
-
-getVarCLevel                    :: Env a -> Name -> Maybe a
-getVarCLevel EMPTY_ENV  n       = Nothing
-getVarCLevel (E map _ e) n      = M.lookup n map
-                                        
+                                
 addLevel                        :: Env a -> Env a
 addLevel e                      = E M.empty 0 e
 

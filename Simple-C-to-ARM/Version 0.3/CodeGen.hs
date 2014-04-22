@@ -7,9 +7,8 @@ module CodeGen (
 import Prelude hiding (EQ, LT, GT)
 import Data.List (intercalate)
 import AST
-import IAST
 import VMInst
-import IASTCompiler
+import ASTCompiler
 import Data.Foldable (toList)
 import Data.Sequence
 
@@ -69,13 +68,13 @@ toString                = S (\(seq, ns) -> (toList seq, (seq , ns)))
 endl                    :: String
 endl                    = " \n"
 
-progToFile            :: IProg -> String -> IO()
+progToFile            :: Prog -> String -> IO()
 progToFile p s        = writeFile s $ (intercalate "" (progToARM p))
 
-progToARM             :: IProg -> [String]
+progToARM             :: Prog -> [String]
 progToARM             = codeToARMFull . comp
 
-progToScreen          :: IProg -> IO()
+progToScreen          :: Prog -> IO()
 progToScreen          = toScreen . codeToARMFull . comp
 
 codeToARMFull         :: Code -> [String]
@@ -94,7 +93,6 @@ getRegVal PC    = "pc"
 getRegVal SB    = "r9" 
 getRegVal LR    = "lr"
 getRegVal SP    = "sp"
-getRegVal TEMP  = "r12"
 getRegVal (R n) = n
 
 instToARM                   :: Inst -> ST ()
@@ -135,10 +133,6 @@ instToARM (SUB SP r1 imd)   =    add4 "\t sub sp, " (getRegVal r1) ", " (getImdV
 instToARM (SUB SB r1 imd)   =    add4 "\t sub r12, " (getRegVal r1) ", " (getImdVal imd (-4))
 instToARM (SUB rf r1 imd)   =    add6 "\t sub " (getRegVal rf) ", " (getRegVal r1) ", " (getImdVal imd 1)
 
-instToARM (MUL rf r1 imd)   =    add6 "\t mul " (getRegVal rf) ", " (getRegVal r1) ", " (getImdVal imd 1)  
-
-instToARM (CMP r1 imd)      =    add4 "\t cmp " (getRegVal r1) ", " (getImdVal imd 1)
-
 instToARM (MOV r (VAL i))   =    add4 "\t mov " (getRegVal r) ", #" (show i)
 instToARM (MOV r (P rs i))  =    add6 "\t add " (getRegVal r) ", " (getRegVal rs) ", #" (show (i * (-4)))
 
@@ -148,8 +142,8 @@ instToARM (BX cond r)       =    add4 "\t bx" (condToARM cond) " " (getRegVal r)
 instToARM (BXL cond r)      =    add4 "\t bxl" (condToARM cond) " " (getRegVal r)
 instToARM (LABEL l)         =    add2 (getLabel l) ":" 
 
-instToARM (PRINT reg)       = do commentB "PRINT"
-                                 add3 "\t add r1, " (getRegVal reg) ", #0"
+instToARM (PRINT)           = do commentB "PRINT"
+                                 add1 "\t pop {r1}"
                                  add1 "\t ldr r0, addr_of_nr"  
                                  add1 "\t bl printf"
                                  comment "end"

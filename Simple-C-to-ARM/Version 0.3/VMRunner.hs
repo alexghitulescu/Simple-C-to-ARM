@@ -51,12 +51,10 @@ nothing       :: ST ()
 nothing       =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 pop           :: ST Integer
-pop           =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp < 0 then (s ! 0, (pc, sb, lr, 0, ("pop", sp):m, s, cflag, stdout))
-                                                                        else (s ! sp, (pc, sb, lr, sp - 1, m, s, cflag, stdout)))
+pop           =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (s ! sp, (pc, sb, lr, sp - 1, m, s, cflag, stdout)))
 
 push          :: Integer -> ST ()
-push i        =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp < 0 then ((), (pc, sb, lr, sp + 1, ("push", sp):m, s // [(0, i)], cflag, stdout))
-                                                                        else ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, i)], cflag, stdout)))  
+push i        =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, i)], cflag, stdout)))  
 
 --pushV         :: Name -> ST ()
 --pushV n       =  S (\(pc, sb, lr, sp, m, s, cflag) -> ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, find n m)], cflag)))
@@ -93,7 +91,6 @@ getRegVal PC    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (pc, (pc, sb, lr
 getRegVal SB    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (sb, (pc, sb, lr, sp, m, s, cflag, stdout)))
 getRegVal LR    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (lr, (pc, sb, lr, sp, m, s, cflag, stdout)))
 getRegVal SP    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (sp, (pc, sb, lr, sp, m, s, cflag, stdout)))
-getRegVal TEMP  =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (find "scratch" m, (pc, sb, lr, sp, m, s, cflag, stdout)))
 getRegVal (R n) =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (find n m, (pc, sb, lr, sp, m, s, cflag, stdout)))
 getRegVal (G n) =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (find n m, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
@@ -102,19 +99,14 @@ setRegVal PC i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (i, sb, l
 setRegVal SB i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, i, lr, sp, m, s, cflag, stdout)))
 setRegVal LR i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, i, sp, m, s, cflag, stdout)))
 setRegVal SP i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, i, m, s, cflag, stdout)))
-setRegVal TEMP i  =  put ("scratch", i)
 setRegVal (R n) i =  put (n, i)
 setRegVal (G n) i =  put (n, i)
 
 load            :: Integer -> ST Integer
-load i          =  if i < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (s ! 0, (pc, sb, lr, sp, ("load", i):m, s, cflag, stdout)))
-                            else S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (s ! i, (pc, sb, lr, sp, m, s, cflag, stdout)))
---load i          =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (s ! i, (pc, sb, lr, sp, m, s, cflag, stdout)))
+load i          =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> (s ! i, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 store           :: Integer -> Integer -> ST ()
-store pos i     =  if i < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, ("store", i):m, s // [(pos, i)], cflag, stdout)))
-                            else S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag, stdout)))
---store pos i     =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag, stdout)))
+store pos i     =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag, stdout)))
 
 start           :: Code -> ST State
 start c         = do addAddress (filter (isAddress) c)
@@ -152,16 +144,6 @@ execCode c      = do inst <- retrieve c
                                                                 setRegVal rf (val1 - val2)
                                                                 execCode c
                                                                 
-                                  (MUL rf r1 imd)         -> do val1 <- getRegVal r1
-                                                                val2 <- getImdVal imd
-                                                                setRegVal rf (val1 * val2)
-                                                                execCode c
-                                                                
-                                  (DIV rf r1 imd)         -> do val1 <- getRegVal r1
-                                                                val2 <- getImdVal imd
-                                                                setRegVal rf (val1 `div` val2)
-                                                                execCode c
-                                   
                                   (MOV r imd)             -> do val <- getImdVal imd
                                                                 setRegVal r val
                                                                 execCode c
@@ -176,7 +158,7 @@ execCode c      = do inst <- retrieve c
                                                                 
                                   (LABEL l)               -> execCode c
                                                                 
-                                  (PRINT reg)             -> do s <- getRegVal reg
+                                  (PRINT)                 -> do s <- pop
                                                                 printToStd (show s ++ "\n")
                                                                 execCode c
                                                                 
@@ -211,15 +193,6 @@ execCode c      = do inst <- retrieve c
                                                                 val2 <- pop
                                                                 setCflag (compare val1 val2)
                                                                 execCode c
-                                  (ADDRESS n)             -> do put ("????ADDRESS: " ++ show n, 0)
-                                                                setRegVal PC 100000
-                                                                execCode c
-                                  (other)                 -> do put ("other: " ++ show other, 0)
-                                                                setRegVal PC 100000
-                                                                execCode c
-                                  
-
-
 
 addAddress                      :: Code -> ST ()
 addAddress []                   = return ()
