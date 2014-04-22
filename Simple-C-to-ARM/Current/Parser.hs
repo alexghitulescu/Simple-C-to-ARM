@@ -9,6 +9,7 @@ import Text.Parsec.Expr
 import Text.Parsec.Token
 import Text.Parsec.Language
 import Text.Parsec.Pos
+import Prelude hiding (EQ, LT, GT)
 import AST
 
 types :: [String]
@@ -53,15 +54,17 @@ table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
         ,-} [Infix ( do {pos <- getPosition  ; m_reservedOp "*" ; return (App pos Mul)}) AssocLeft]
         , [Infix (do {pos <- getPosition ; m_reservedOp "+" ; return (App pos Add)}) AssocLeft]
         , [Infix (do {pos <- getPosition ; m_reservedOp "-" ; return (App pos Sub)}) AssocLeft]
-        {-, [Infix (m_reservedOp "==" >> return (Cond CEQ)) AssocNone]
-        , [Infix (m_reservedOp "!=" >> return (Cond CNE)) AssocNone]
-        , [Infix (m_reservedOp "<"  >> return (Cond CLT)) AssocNone]
-        , [Infix (m_reservedOp "<=" >> return (Cond CLE)) AssocNone]
-        , [Infix (m_reservedOp ">"  >> return (Cond CGT)) AssocNone]
-        , [Infix (m_reservedOp ">=" >> return (Cond CGE)) AssocNone]-}
+        , [Infix (do {pos <- getPosition ; m_reservedOp "==" ; return (Compare pos EQ)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "!=" ; return (Compare pos NE)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "<"  ; return (Compare pos LT)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "<=" ; return (Compare pos LE)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp ">"  ; return (Compare pos GT)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp ">=" ; return (Compare pos GE)}) AssocNone]
         ]
 term = m_parens exprParser
-       <|> try funcParserExpr
+       <|> do { pos <- getPosition
+              ; try $ funcParserExpr pos
+              }
        <|> do { pos <- getPosition
               ; fmap (Var pos) m_identifier
               }
@@ -78,31 +81,32 @@ term = m_parens exprParser
               }
        
  
-asgnParser   :: String -> Parser Stmt
-asgnParser v =     do { m_reservedOp "="
-                      ; e <- exprParser
-                      ; return (Assign v e)
-                      }
-               {-<|> do { m_reservedOp "+="
-                      ; e <- exprparser
-                      ; return (Asg Add1 v e)
-                      }-}
+asgnParser              :: String -> SourcePos -> Parser Stmt
+asgnParser v pos        = do { m_reservedOp "="
+                             ; e <- exprParser
+                             ; return (Assign pos v e)
+                             }
+                    {-<|> do { m_reservedOp "+="
+                             ; e <- exprparser
+                             ; return (Asg Add1 v e)
+                             }-}
 
-funcParser   :: String -> Parser Stmt
-funcParser v =    do { e <- m_parens ( m_commaSep exprParser )
-                     ; return (Ex (Apply v e))
-                     }
+funcParser              :: String -> SourcePos -> Parser Stmt
+funcParser v pos        = do { e <- m_parens ( m_commaSep exprParser )
+                             ; return (Ex (Apply pos v e))
+                             }
 
-funcParserExpr  :: Parser Expr
-funcParserExpr  = do { v <- m_identifier
-                     ; e <- m_parens ( m_commaSep exprParser )
-                     ; return (Apply v e)
-                     }
+funcParserExpr          :: SourcePos -> Parser Expr
+funcParserExpr pos      = do { v <- m_identifier
+                             ; e <- m_parens ( m_commaSep exprParser )
+                             ; return (Apply pos v e)
+                             }
                      
 forParser    :: Parser (String, Stmt, Expr, Stmt)
-forParser    =  do { m_reserved "int"
+forParser    =  do { pos <- getPosition
+                   ; m_reserved "int"
                    ; d <- m_identifier
-                   ; a <- asgnParser d
+                   ; a <- asgnParser d pos
                    ; m_semi
                    ; e <- exprParser
                    ; m_semi
@@ -117,8 +121,9 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
                      ; v <- m_identifier
                      ; return (LocalVar v)
                      }
-              <|> do { v <- m_identifier
-                     ; choice [ try (asgnParser v) , try (funcParser v) ]
+              <|> do { pos <- getPosition
+                     ; v <- m_identifier
+                     ; choice [ try (asgnParser v pos) , try (funcParser v pos) ]
                      }
               <|> do { m_reserved "if"
                      ; b <- m_parens exprParser

@@ -4,7 +4,7 @@ module IASTCompiler (
      compI
 ) where
 
-import Prelude hiding (EQ)
+import Prelude hiding (EQ, LT, GT)
 import Data.Foldable (toList)
 import Data.Sequence
 import Text.Parsec.Pos
@@ -120,13 +120,13 @@ compProg (IFun n ns st)         = do addEnvLevel
                                      --take space for arguments on the stack
                                      addFuncArgs ns 1
                                      setEnvDisplacement 2
-                                     envDis <- getEnvDisplacement
                                      --save SB, LR and execute the code and increment SP by the number of args.
                                      emitCode   [LABEL (N n), PUSHV SB, MOV SB (P SP 0), PUSHV LR]
                                      compStmt st
+                                     envDis <- getEnvDisplacement
                                      emitCode   [SUB SP SP (VAL (envDis - 2)), POP LR, POP SB]
                                      emit       (SUB SP SP (VAL (toInteger(Prelude.length ns))))
-                                     emitCode   [PUSHV (R "r0"), BX NONE LR]
+                                     emitCode   [BX NONE LR]
                                      -- restore SP to before arguments
                                      remEnvLevel
 compProg (IPSeq [    ])         = return ()
@@ -142,7 +142,9 @@ compStmt (ILocalVar n)          = do dis <- getEnvDisplacement
                                      addEnvVar n (P SB dis)
                                      addEnvDisplacement 1
                                      emit       (ADD SP SP (VAL 1))
-compStmt (IAssign v val)        = compAssign v val
+compStmt (IAssign v val)        = do posV <- getEnvVar v
+                                     reg <- compVal val TEMP
+                                     emit (STR reg posV)
 compStmt (IPrint val)           = do reg <- compVal val TEMP
                                      emit       (PRINT reg)
 compStmt (ISeqn [    ])         = return ()
@@ -151,7 +153,7 @@ compStmt (ISeqn (x:xs))         = do compStmt x
 compStmt (IWhile es v p)        = do lb <- fresh
                                      lb' <- fresh
                                      emit (LABEL lb) 
-                                     compStmts es 
+                                     mapM_ compStmt es 
                                      jumpz v lb'
                                      compStmt p
                                      emitCode   [B NONE lb, LABEL lb']
@@ -181,12 +183,6 @@ compStmt (IApp n op v1 v2)      = do addTempVar n
                                      posV <- getEnvVar n
                                      emit (STR TEMP posV)
 
-              
-compAssign                      :: Name -> Value -> ST ()
-compAssign v val                = do posV <- getEnvVar v
-                                     reg <- compVal val TEMP
-                                     emit (STR reg posV)
-
 
 compVal                         :: Value -> Reg -> ST Reg
 compVal (IVal i) reg            = do emit (MOV reg (VAL i))
@@ -212,10 +208,21 @@ jumpz (IVar v) lb               = do posV <- getEnvVar v
                                      emit (B EQ lb)
 jumpz (LastReturn) lb           = do emit (CMP (R "r0") (VAL 0))
                                      emit (B EQ lb)
-
+jumpz (IComp c v1 v2) lb        = do r1 <- compVal v1 (R "r11")
+                                     r2 <- compVal v2 TEMP
+                                     emit (CMP r1 (P r2 0))
+                                     emit (B (condOpposite c) lb)
                                      
 compStmts                     :: [IStmt] -> ST()
 compStmts []                  = return ()
 compStmts (e:es)              = do compStmt e
                                    compStmts es
                                      
+                                     
+condOpposite            :: Cond -> Cond
+condOpposite EQ         = NE          
+condOpposite NE         = EQ
+condOpposite GT         = LE
+condOpposite LT         = GE
+condOpposite GE         = LT
+condOpposite LE         = GT

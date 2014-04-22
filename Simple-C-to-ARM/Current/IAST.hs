@@ -30,6 +30,8 @@ data IStmt            =  ILocalVar Name
                          deriving Show
                          
 data Value            =  IVal Integer 
-                      |  IVar Name 
+                      |  IVar Name                       
                       |  LastReturn
+                      |  ILit Name
+                      |  IComp Cond Value Value
                          deriving (Show, Ord, Eq)

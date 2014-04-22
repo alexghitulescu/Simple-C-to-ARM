@@ -177,6 +177,7 @@ instToARM (CMPST)           = do commentB "CMPST"
 
 getImdVal               :: Imd -> Integer -> String
 getImdVal (VAL i) mul   = '#':show (i * mul)
+getImdVal (P r 0) mul   = getRegVal r
 getImdVal (P r i) mul   = "[" ++ (getRegVal r) ++ ", #" ++ show (i * mul) ++ "]"
 
 getLabel                :: Label -> String

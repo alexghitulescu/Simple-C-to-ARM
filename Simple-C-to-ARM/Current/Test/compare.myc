@@ -1,0 +1,16 @@
+
+int main()
+{
+	int a;
+	int b;
+	a = 5;
+	b = 4;
+	if (a >= b + 1)
+	{
+		print(0);
+	}
+	else
+	{
+		print(1);
+	}
+}

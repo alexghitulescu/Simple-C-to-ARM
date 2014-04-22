@@ -7,6 +7,7 @@ import Text.Parsec.Pos
 import Data.Foldable (toList)
 import qualified Data.Sequence as Sq
 import qualified Data.Map as M
+import Prelude hiding (EQ, LT, GT)
 import AST
 import IAST
 
@@ -88,11 +89,19 @@ first (Val _ n)                 = do let val = IVal n
 first (Var _ v)                 = do let val = IVar v
                                      add val (Leaf val)
                                      return val
+first (Lit _ n)                 = do let val = ILit n
+                                     add val (Leaf val)
+                                     return val
+first (Compare _ c e1 e2)       = do v1 <- first e1
+                                     v2 <- first e2
+                                     let val = IComp c v1 v2
+                                     add val (Leaf val)
+                                     return val
 first (App _ op e1 e2)          = do v1 <- first e1
                                      v2 <- first e2
                                      name <- insert (Node op v1 v2)
                                      return name
-first (Apply n e)               = do names <- mapM first e
+first (Apply _ n e)             = do names <- mapM first e
                                      name <- fresh
                                      let var = IVar name
                                      add2 var (Ap var n names)
@@ -117,13 +126,19 @@ test1 = App pos Add (App pos Add (Var pos "A") (Var pos "B")) (App pos Add (Var 
 
 test2 :: Expr
 test2 = App pos Add 
-                (Apply "fun" [(App pos Add (Var pos "A") (Var pos "B"))]) 
+                (Apply pos "fun" [(App pos Add (Var pos "A") (Var pos "B"))]) 
                 (App pos Add 
                         (App pos Add (Var pos "A") (Var pos "B")) 
                         (App pos Add (Var pos "A") (Var pos "B")))
                         
-test3 = Apply "fun2" [
-                (Apply "fun" [(App pos Add (Var pos "A") (Var pos "B"))]),
+test3 = Apply pos "fun2" [
+                (Apply pos "fun" [(App pos Add (Var pos "A") (Var pos "B"))]),
                 (App pos Add 
                         (App pos Add (Var pos "A") (Var pos "B")) 
                         (App pos Add (Var pos "A") (Var pos "B")))]
+                        
+test4 = Compare pos GT 
+                (Apply pos "fun" [(App pos Add (Var pos "A") (Var pos "B"))])
+                (App pos Add 
+                        (App pos Add (Var pos "A") (Var pos "B")) 
+                        (App pos Add (Var pos "A") (Var pos "B")))

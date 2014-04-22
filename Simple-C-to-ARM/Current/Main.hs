@@ -32,7 +32,7 @@ runInVM           :: String -> IO()
 runInVM fileName  = do prog <- parseFile fileName
                        prog' <- compE prog
                        code <- compI prog'
-                       putStr (execPrint code)
+                       execPrint code
 
 printInst           :: String -> IO()
 printInst fileName  = do prog <- parseFile fileName
@@ -44,7 +44,7 @@ printIProg           :: String -> IO()
 printIProg fileName  = do prog <- parseFile fileName
                           prog' <- compE prog
                           print prog'
-                         
+                          
 main = do args <- getArgs
           case args of 
               []        -> putStr "no file as argument"

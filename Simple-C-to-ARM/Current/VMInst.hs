@@ -6,7 +6,6 @@ module VMInst (
     Inst   (..),
     Label  (..),
     Reg    (..),
-    Cond   (..),
     CFlag  (..),
     Imd    (..)
 ) where
@@ -50,8 +49,6 @@ data Inst             =  ADDRESS Name
 data Reg              = SB | PC | LR | SP | TEMP | R Name | G Name deriving (Show, Eq)
 
 data Imd              = P Reg Integer | VAL Integer deriving (Show, Eq)
-
-data Cond             = EQ | NE | GT | LT | GE | LE | NONE deriving (Show, Eq)
 
 data CFlag            = EQ' | GT' | LT' | NONE' deriving (Show, Eq)
                          

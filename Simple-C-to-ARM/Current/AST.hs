@@ -4,6 +4,8 @@ module AST (
     Stmt (..),
     Expr (..),
     Name (..),
+    Cond (..),
+    Type (..),
     Op   (..)
 ) where
 
@@ -21,7 +23,7 @@ data Prog             =  GlobalVar Name SourcePos
 
 data Stmt             =  Ex Expr 
                       |  LocalVar Name 
-                      |  Assign Name Expr 
+                      |  Assign SourcePos Name Expr 
                       |  If Expr Stmt Stmt 
                       |  While Expr Stmt 
                       |  Seqn [Stmt]
@@ -31,15 +33,18 @@ data Stmt             =  Ex Expr
 
 data Expr             =  Val SourcePos Integer 
                       |  Var SourcePos Name 
+                      |  Lit SourcePos Name
+                      |  Compare SourcePos Cond Expr Expr
                       |  App SourcePos Op Expr Expr
-                      |  Apply Name [Expr] 
+                      |  Apply SourcePos Name [Expr]
                          deriving Show
 
+data Cond             =  EQ | NE | GT | LT | GE | LE | NONE deriving (Show, Eq, Ord)
 
 type Name             =  String
 
-data Type             =  Int | Str 
-                         deriving Show
+data Type             =  Int | Str | Bool | InvalidType
+                         deriving (Show, Eq)
 
 data Op               =  Add | Sub | Mul | Div
                          deriving (Show , Eq, Ord)

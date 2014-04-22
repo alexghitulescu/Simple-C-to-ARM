@@ -22,9 +22,9 @@ compE p                         = case err of
                                         [] -> return prog
                                         xs -> do print xs
                                                  return (IPSeq [])
-                                   where (prog, (_, _, err, _)) = runState' p
+                                   where (prog, (_, err)) = runState' p
                                               
-runState' p = runState (compProg p) (0, emptyTop, [], empty)                                              
+runState' p = runState (compProg p) (emptyTop, [])                                              
 
 type Error = [String]
 
@@ -34,7 +34,7 @@ type Error = [String]
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Integer, Env Imd, Error, Seq Inst)
+type State    = (Env Imd, Error)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -47,54 +47,28 @@ instance Monad ST where
       st >>= f   = S (\s -> let (x,s') = apply st s in apply (f x) s')
 
       
--- The function that generates the fresh labels. It is of type ST showing that it has a hidden state. 
-
-fresh                   :: ST Name
-fresh                   =  S (\(n, env, e, c) -> ("@temp@" ++ show(n), (n+1, env, e, c)))
-
-emit                    :: Inst -> ST ()
-emit i                  = S (\(n, env, e, c) -> ((), (n+1, env, e, c |> i)))
-
-emitCode                :: Code -> ST ()
-emitCode c'             = S (\(n, env, e, c) -> ((), (n+1, env, e, c >< fromList c')))
 
 writeError              :: String -> ST ()
-writeError e            =  S ((\(n, env, err, c) -> ((), (n, env, e:err, c))))
+writeError e            =  S ((\(env, err) -> ((), (env, e:err))))
 
 addEnvLevel             :: ST ()
-addEnvLevel             =  S (\(n, env, e, c) -> ((), (n, addLevel env, e, c)))
+addEnvLevel             =  S (\(env, e) -> ((), (addLevel env, e)))
 
 remEnvLevel             :: ST ()
-remEnvLevel             =  S (\(n, env, e, c) -> ((), (n, removeLevel env, e, c)))
+remEnvLevel             =  S (\(env, e) -> ((), (removeLevel env, e)))
 
 addEnvVar               :: Name -> Imd -> ST ()
-addEnvVar q (P r d)     =  S (\(n, env, e, c) -> ((), (n, env `addVar` (q,P r d), e, c)))
+addEnvVar q (P r d)     =  S (\(env, e) -> ((), (env `addVar` (q,P r d), e)))
 
-getEnvVar               :: Name -> ST Imd
-getEnvVar q             =  S (\(n, env, e, c) -> case env `getVar` q of 
-                                                Nothing -> (P SB 0, (n, env, ("could not find " ++ (show q)):e, c))
-                                                Just p  -> (p, (n, env, e, c)))
-
-getEnvVar2               :: Name -> SourcePos -> ST Imd
-getEnvVar2 q p           = do env <- getEnv 
+getEnvVar                :: Name -> SourcePos -> ST Imd
+getEnvVar q p            = do env <- getEnv 
                               case env `getVar` q of 
-                                                Nothing -> do let l = sourceLine p
-                                                              let c = sourceColumn p
-                                                              writeError ("could not find " ++ (show q) ++ "line: " ++ show l ++ ", column: " ++ show c)
+                                                Nothing -> do writeError $ "could not find " ++ show q ++ " near: " ++ show p
                                                               return (P SB 0)
                                                 Just p  -> return p
-                                                
-setEnvDisplacement      :: Integer -> ST ()
-setEnvDisplacement i    =  S (\(n, env, e, c) -> ((), (n, env `setDisplacement` i, e, c)))
-
-getEnvDisplacement      :: ST Integer
-getEnvDisplacement      =  S (\(n, env, e, c) -> (displacement env, (n, env, e, c)))
-
-addEnvDisplacement      :: Integer -> ST ()
-addEnvDisplacement i    =  S (\(n, env, e, c) -> ((), (n, env `addDisplacement` i, e, c)))
 
 getEnv                  :: ST (Env Imd)
-getEnv                  =  S (\(n, env, e, c) -> (env, (n, env, e, c)))
+getEnv                  =  S (\(env, e) -> (env, (env, e)))
 
 -- [names of arguments] -> where should it start
 addFuncArgs             :: [Name] -> ST ()
@@ -116,39 +90,82 @@ compProg (PSeq xs)              = do list <- mapM compProg xs
 compStmt                        :: Stmt -> ST IStmt
 compStmt (LocalVar n)           = do addEnvVar n (P SB 0)
                                      return (ILocalVar n)
-compStmt (Assign n e)           = do posV <- getEnvVar n
+compStmt (Assign pos n e)       = do posV <- getEnvVar n pos
                                      compAssign n e
-compStmt (Print e)              = do let (seq, var) = transform e
-                                     let stmt = toList $ seq |> (IPrint var)
-                                     return (ISeqn stmt)
+compStmt (Print e)              = tryExpr [Int] e $ do { let (seq, var) = transform e
+                                                       ; let stmt = toList $ seq |> (IPrint var)
+                                                       ; return (ISeqn stmt)
+                                                       }
 compStmt (Seqn [])              = return (ISeqn [])
 compStmt (Seqn xs)              = do list <- mapM compStmt xs
                                      return (ISeqn (list))
-compStmt (While e p)            = do let (seq, var) = transform e
-                                     let stmt = toList seq 
-                                     p' <- compStmt p
-                                     return (IWhile stmt var p')
-compStmt (If e p1 p2)           = do p1' <- compStmt p1
-                                     p2' <- compStmt p2
-                                     let (seq, var) = transform e
-                                     let stmt = toList $ seq |> (IIf var p1' p2')
-                                     return (ISeqn stmt)
-compStmt (Ex e)                 = do let (seq, var) = transform e
-                                     return (ISeqn $ toList seq)
-compStmt (Return e)             = do let (seq, var) = transform e
-                                     let stmt = toList $ seq |> (IReturn var)
-                                     return (ISeqn stmt)
+compStmt (While e p)            = tryExpr intAndBool e $ do { let (seq, var) = transform e
+                                                            ; let stmt = toList seq 
+                                                            ; p' <- compStmt p
+                                                            ; return (IWhile stmt var p')
+                                                            }
+compStmt (If e p1 p2)           = tryExpr intAndBool e $ do { p1' <- compStmt p1
+                                                            ; p2' <- compStmt p2
+                                                            ; let (seq, var) = transform e
+                                                            ; let stmt = toList $ seq |> (IIf var p1' p2')
+                                                            ; return (ISeqn stmt)
+                                                            }
+compStmt (Ex e)                 = tryExpr anyType e $ do { let (seq, var) = transform e
+                                                         ; return (ISeqn $ toList seq)
+                                                         }
+compStmt (Return e)             = tryExpr [Int] e $ do { let (seq, var) = transform e
+                                                       ; let stmt = toList $ seq |> (IReturn var)
+                                                       ; return (ISeqn stmt)
+                                                       }
 
+tryExpr                         :: [Type] -> Expr -> ST IStmt -> ST IStmt
+tryExpr t e a                   = if validExpression t e 
+                                        then a
+                                        else do writeError $ "Invalid expression type near " ++ show (getExprSrc e)
+                                                return (ISeqn [])
+                                                
                                      
 compAssign                      :: Name -> Expr -> ST IStmt
 compAssign n (Val _ i)          = return (IAssign n (IVal i))
-compAssign n (Var pos v)        = do posV <- getEnvVar2 v pos
+compAssign n (Var pos v)        = do posV <- getEnvVar v pos
                                      return (IAssign n (IVar v))
+compAssign _ (Lit pos _)        = do writeError $ "Invalid assignment near " ++ show pos
+                                     return (ISeqn [])
+compAssign _ (Compare p _ _ _)  = do writeError $ "Invalid assignment near " ++ show p
+                                     return (ISeqn [])
 compAssign n expr               = do let (seq, var) = transform expr
                                      let stmt = toList $ seq |> (IAssign n var)
                                      return (ISeqn stmt)
                                      
-              
+validExpression                 :: [Type] -> Expr -> Bool
+validExpression t e             = (parseType e) `elem` t
+
+parseType                       :: Expr -> Type
+parseType (Val _ _)             = Int
+parseType (Var _ _)             = Int
+parseType (Lit _ _)             = Str
+parseType (Compare _ _ e1 e2)   = if (typeAnd (parseType e1) (parseType e2)) == Int then Bool else InvalidType
+parseType (App _ _ e1 e2)       = if (typeAnd (parseType e1) (parseType e2)) == Int then Int else InvalidType
+parseType (Apply _ _ es)        = if foldl (&&) True (map (validExpression intAndStr) es) then Int else InvalidType
+
+typeAnd                         :: Type -> Type -> Type
+typeAnd Str _                   = InvalidType
+typeAnd _ Str                   = InvalidType
+typeAnd x y                     = if x == y then x else InvalidType
+                                     
 jumpz                           :: Label -> Code
 jumpz lb                        = [PUSH 0, CMPST, B EQ lb]
-                                     
+
+-- helper functions
+
+intAndStr = [Int, Str]
+intAndBool = [Int, Bool] 
+anyType = [Int, Str, Bool]
+
+getExprSrc                      :: Expr -> SourcePos
+getExprSrc (Val p _)            = p
+getExprSrc (Var p _)            = p
+getExprSrc (Lit p _)            = p
+getExprSrc (Compare p _ _ _)    = p
+getExprSrc (App p _ _ _)        = p
+getExprSrc (Apply p _ es)       = p                          
