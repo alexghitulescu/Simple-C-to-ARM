@@ -1,0 +1,18 @@
+PSeq [GlobalVar "result",
+	  Fun "fib" ["i"] (Seqn [
+                LocalVar "a",
+		LocalVar "b",
+		LocalVar "c",
+		LocalVar "t",
+		Assign "a" (Val 1),
+		Assign "b" (Val 1),
+		Assign "c" (App Sub (Var "i") (Val 2)),
+		While (Var "c") (Seqn [
+                                        Assign "t" (Var "b"),
+                                        Assign "b" (App Add (Var "a") (Var "b")),
+					Assign "a" (Var "t"),
+					Assign "c" (App Sub (Var "c") (Val 1))]),
+		Assign "result" (Var "b")]),
+	  Fun "main" [] (Seqn [
+                Apply "fib" [Val 16],
+		Print(Var "result")])]
