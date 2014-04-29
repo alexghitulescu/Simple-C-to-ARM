@@ -14,15 +14,17 @@ import VMInst
 import ASTCompiler
 --import SampleProg
 
+stackSize = 70
+
 execM                           :: Code -> IO State
-execM c                         = do result <- runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c), 0, [], stack, NONE', Sq.empty)
+execM c                         = do result <- runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c) + 1, -1, [], stack, NONE', Sq.empty)
                                      return $ fst result
-                                                                                        where stack = array (0, 1000) [(i, 0) | i <- [0..1000]]
+                                                                                        where stack = array (0, stackSize) [(i, 99999) | i <- [0..stackSize]]
 
 execPrint                       :: Code -> IO ()
-execPrint c                     = do putStr "Started execution"
+execPrint c                     = do putStr "Started execution\n"
                                      (pc, sb, lr, sp, m, s, cflag, stdout) <- execM c
-                                     let stack = take (fromInteger sp) (assocs s)
+                                     let stack = take ((fromInteger sp) + 1) (assocs s)
                                      putStr ("(pc: " ++ show(pc) ++ ", sb: " ++ show(sb) ++ ", lr: " ++ show(lr))
                                      putStr (", sp: " ++ show(sp) ++ ", mem: " ++ show(m) ++ ", stack: " ++ show(stack))
                                      putStr (", flag: " ++ show(cflag) ++ "\n stdout:\n" ++ intercalate "" (toList stdout))
@@ -132,7 +134,10 @@ printToStd string = S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc
 execCode        :: Code -> ST State
 execCode c      = do inst <- retrieve c
                      next
-                     liftIO $ putStr (show inst ++ "\n")
+                     m <- mem
+                     (_, _, _, sp, _, s, _, _) <- state
+                     let stack = take ((fromInteger sp) + 1) (assocs s)
+                     liftIO $ putStr (show inst ++ "\t\t | " ++ show m ++ "|" ++ show stack ++ "\n")
                      case inst of (PUSH i)                -> do push i
                                                                 execCode c
                                                                 
@@ -174,8 +179,6 @@ execCode c      = do inst <- retrieve c
                                                                 execCode c
                                    
                                   (BX cond reg)           -> execInstBX c cond reg
-                                  (BXL cond reg)          -> do savePCToLR
-                                                                execInstBX c cond reg
                                                                 
                                   (B cond l)              -> execInstB c cond l
                                   (BL cond l)             -> do savePCToLR
@@ -211,15 +214,8 @@ execCode c      = do inst <- retrieve c
                                                                 
                                   (CMP r1 imd)            -> do r1val <- getRegVal r1
                                                                 imdval <- getImdVal imd
+                                                                liftIO $ putStr (show r1val ++ " : " ++ show imdval ++ "\n")
                                                                 setCflag (compare r1val imdval)
-                                                                execCode c
-                                                                
-                                  (CMPST)                 -> do val1 <- pop
-                                                                val2 <- pop
-                                                                setCflag (compare val1 val2)
-                                                                execCode c
-                                  (ADDRESS n)             -> do put ("????ADDRESS: " ++ show n, 0)
-                                                                setRegVal PC 100000
                                                                 execCode c
                                   (other)                 -> do put ("other: " ++ show other, 0)
                                                                 setRegVal PC 100000

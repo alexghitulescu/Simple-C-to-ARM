@@ -23,6 +23,7 @@ data IStmt            =  ILocalVar Name
                       |  IIf Value IStmt IStmt 
                       |  IWhile [IStmt] Value IStmt 
                       |  ISeqn [IStmt]
+                      |  ISeqnE [IStmt]
                       |  IPrint Value 
                       |  IReturn Value 
                       |  IApply Name [Value] Name

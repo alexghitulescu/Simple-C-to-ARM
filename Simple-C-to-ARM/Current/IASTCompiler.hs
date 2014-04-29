@@ -147,9 +147,16 @@ compStmt (IAssign v val)        = do posV <- getEnvVar v
                                      emit (STR reg posV)
 compStmt (IPrint val)           = do reg <- compVal val TEMP
                                      emit       (PRINT reg)
-compStmt (ISeqn [    ])         = return ()
-compStmt (ISeqn (x:xs))         = do compStmt x
-                                     compStmt (ISeqn xs)
+compStmt (ISeqn  [])            = return ()
+compStmt (ISeqnE [])            = return ()
+compStmt (ISeqn  xs)            = mapM_ compStmt xs
+compStmt (ISeqnE xs)            = do dis <- getEnvDisplacement
+                                     addEnvLevel
+                                     setEnvDisplacement dis
+                                     mapM_ compStmt xs
+                                     dis2 <- getEnvDisplacement
+                                     remEnvLevel
+                                     emit (SUB SP SP (VAL (dis2 - dis)))
 compStmt (IWhile es v p)        = do lb <- fresh
                                      lb' <- fresh
                                      emit (LABEL lb) 

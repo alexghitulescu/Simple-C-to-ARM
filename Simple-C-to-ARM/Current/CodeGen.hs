@@ -139,14 +139,13 @@ instToARM (MUL rf r1 imd)   =    add6 "\t mul " (getRegVal rf) ", " (getRegVal r
 
 instToARM (CMP r1 imd)      =    add4 "\t cmp " (getRegVal r1) ", " (getImdVal imd 1)
 
-instToARM (MOV r (VAL i))   =    if(i <= 256) then add4 "\t mov " (getRegVal r) ", #" (show i)
+instToARM (MOV r (VAL i))   =    if(abs i <= 256) then add4 "\t mov " (getRegVal r) ", #" (show i)
                                               else add4 "\t ldr " (getRegVal r) ", =" (show i)
 instToARM (MOV r (P rs i))  =    add6 "\t add " (getRegVal r) ", " (getRegVal rs) ", #" (show (i * (-4)))
 
 instToARM (B cond l)        =    add4 "\t b" (condToARM cond) " " (getLabel l)
 instToARM (BL cond l)       =    add4 "\t bl" (condToARM cond) " " (getLabel l)
 instToARM (BX cond r)       =    add4 "\t bx" (condToARM cond) " " (getRegVal r)
-instToARM (BXL cond r)      =    add4 "\t bxl" (condToARM cond) " " (getRegVal r)
 instToARM (LABEL l)         =    add2 (getLabel l) ":" 
 
 instToARM (PRINT reg)       = do commentB "PRINT"
@@ -168,12 +167,6 @@ instToARM (STR r1 imd)      = case imd of
                                                 add3 "\t str " (getRegVal r1) ", [r3]"
                                                 comment "end"
                                 _         ->    add4 "\t str " (getRegVal r1) ", " (getImdVal imd (-4))
-                                
-instToARM (CMPST)           = do commentB "CMPST"
-                                 add1 "\t pop {r3}"
-                                 add1 "\t pop {r4}"
-                                 add1 "\t cmp r3, r4" 
-                                 comment "end"
 
 
 getImdVal               :: Imd -> Integer -> String

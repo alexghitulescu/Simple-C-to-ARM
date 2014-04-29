@@ -27,6 +27,7 @@ data Stmt             =  Ex Expr
                       |  If Expr Stmt Stmt 
                       |  While Expr Stmt 
                       |  Seqn [Stmt]
+                      |  SeqnE [Stmt]
                       |  Print Expr 
                       |  Return Expr 
                          deriving Show

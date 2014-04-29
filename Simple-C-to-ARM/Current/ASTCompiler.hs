@@ -63,7 +63,7 @@ addEnvVar q (P r d)     =  S (\(env, e) -> ((), (env `addVar` (q,P r d), e)))
 getEnvVar                :: Name -> SourcePos -> ST Imd
 getEnvVar q p            = do env <- getEnv 
                               case env `getVar` q of 
-                                                Nothing -> do writeError $ "could not find " ++ show q ++ " near: " ++ show p
+                                                Nothing -> do writeError $ "undefined variable " ++ show q ++ " near: " ++ show p
                                                               return (P SB 0)
                                                 Just p  -> return p
 
@@ -96,9 +96,12 @@ compStmt (Print e)              = tryExpr [Int] e $ do { let (seq, var) = transf
                                                        ; let stmt = toList $ seq |> (IPrint var)
                                                        ; return (ISeqn stmt)
                                                        }
-compStmt (Seqn [])              = return (ISeqn [])
-compStmt (Seqn xs)              = do list <- mapM compStmt xs
-                                     return (ISeqn (list))
+compStmt (Seqn  [])             = return (ISeqn [])
+compStmt (SeqnE [])             = return (ISeqn [])
+compStmt (Seqn  xs)             = do list <- mapM compStmt xs
+                                     return (ISeqn list)
+compStmt (SeqnE xs)             = do list <- mapM compStmt xs
+                                     return (ISeqnE list)
 compStmt (While e p)            = tryExpr intAndBool e $ do { let (seq, var) = transform e
                                                             ; let stmt = toList seq 
                                                             ; p' <- compStmt p
@@ -152,9 +155,6 @@ typeAnd                         :: Type -> Type -> Type
 typeAnd Str _                   = InvalidType
 typeAnd _ Str                   = InvalidType
 typeAnd x y                     = if x == y then x else InvalidType
-                                     
-jumpz                           :: Label -> Code
-jumpz lb                        = [PUSH 0, CMPST, B EQ lb]
 
 -- helper functions
 
