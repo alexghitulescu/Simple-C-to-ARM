@@ -4,12 +4,14 @@ module DAG (
 ) where
 
 import Text.Parsec.Pos
+import Text.Printf
 import Data.Foldable (toList)
 import qualified Data.Sequence as Sq
 import qualified Data.Map as M
 import Prelude hiding (EQ, LT, GT)
 import AST
 import IAST
+import Helper
 
 transform                       :: Expr -> (Sq.Seq IStmt, Value)
 transform e                     = (seq, val)
@@ -52,7 +54,7 @@ getNameMap              :: ST (M.Map Value Tree)
 getNameMap              =  S (\(n, emap, nmap, seq) -> (nmap, (n, emap, nmap, seq)))
 
 fresh                   :: ST Name
-fresh                   =  S (\(n, emap, nmap, seq) -> ("@temp" ++ show(n), (n+1, emap, nmap, seq)))
+fresh                   =  S (\(n, emap, nmap, seq) -> ("@t" ++ (printf "%07d" n), (n+1, emap, nmap, seq)))
 
 add                     :: Value -> Tree -> ST ()
 add val t               =  S (\(n, emap, nmap, seq) -> ((), (n, M.insert t val emap, M.insert val t nmap, seq)))
@@ -64,6 +66,17 @@ addStmt                 :: IStmt -> ST ()
 addStmt s               =  S (\(n, emap, nmap, seq) -> ((), (n, emap, nmap, seq Sq.|> s)))
 
 
+getValue                        :: Value -> ST Value
+getValue (IVal x)               =  return $ IVal x
+getValue (IComp c v1 v2)        =  do v1' <- getValue v1
+                                      v2' <- getValue v2
+                                      return $ IComp c v1' v2'
+getValue v                      =  do map <- getNameMap
+                                      case M.lookup v map of
+                                        Nothing -> return v
+                                        Just a  -> case a of Leaf (IVal x) -> return $ IVal x
+                                                             _             -> return v
+                                        
 insert                  :: Tree -> ST Value
 insert t                =  do map <- getEntryMap
                               case M.lookup t map of
@@ -77,54 +90,65 @@ insert t                =  do map <- getEntryMap
 -- functions
 
 process                         :: Expr -> ST Value
-process e                       = do val <- first e
+process e                       = do val <- toDAG e
                                      nameMap <- getNameMap
-                                     second $ M.toAscList nameMap
-                                     return val
+                                     resolve $ M.toAscList nameMap
+                                     val' <- getValue val
+                                     return val'
 
-first                           :: Expr -> ST Value
-first (Val _ n)                 = do let val = IVal n
+toDAG                           :: Expr -> ST Value
+toDAG (Val _ n)                 = do let val = IVal n
                                      add val (Leaf val)
                                      return val
-first (Var _ v)                 = do let val = IVar v
+toDAG (Var _ v)                 = do let val = IVar v
                                      add val (Leaf val)
                                      return val
-first (Lit _ n)                 = do let val = ILit n
+toDAG (Lit _ n)                 = do let val = ILit n
                                      add val (Leaf val)
                                      return val
-first (Compare _ c e1 e2)       = do v1 <- first e1
-                                     v2 <- first e2
+toDAG (Compare _ c e1 e2)       = do v1 <- toDAG e1
+                                     v2 <- toDAG e2
                                      let val = IComp c v1 v2
                                      add val (Leaf val)
                                      return val
-first (App _ op e1 e2)          = do v1 <- first e1
-                                     v2 <- first e2
+toDAG (App _ op e1 e2)          = do v1 <- toDAG e1
+                                     v2 <- toDAG e2
                                      name <- insert (Node op v1 v2)
                                      return name
-first (Apply _ n e)             = do names <- mapM first e
+toDAG (Apply _ n e)             = do names <- mapM toDAG e
                                      name <- fresh
                                      let var = IVar name
                                      add2 var (Ap var n names)
                                      return var
 
-second                                  :: [(Value, Tree)] -> ST()
-second []                               = return ()
-second ((_, Leaf _):ns)                 = second ns
-second ((IVar n, Node op v1 v2):ns)     = do addStmt (IApp n op v1 v2)
-                                             second ns
-second ((IVar n, Ap _ f vs):ns)         = do addStmt (IApply f vs n)
-                                             addStmt (IAssign n LastReturn)
-                                             second ns
-                                     
-                                     
+resolve                                         :: [(Value, Tree)] -> ST()
+resolve []                                      = return ()
+resolve ((IVar n, Leaf (IComp c v1 v2)):ns)     = do v1' <- getValue v1
+                                                     v2' <- getValue v2
+                                                     add2 (IVar n) (Leaf (IComp c v1 v2))
+resolve ((_     , Leaf _):ns)                   = resolve ns
+resolve ((IVar n, Node op v1 v2):ns)            = do v1' <- getValue v1
+                                                     v2' <- getValue v2
+                                                     if isVal2 v1' v2' then add2 (IVar n) (Leaf (eval op v1' v2'))
+                                                                       else addStmt (IApp n op v1' v2')
+                                                     resolve ns
+                                             
+resolve ((IVar n, Ap _ f vs):ns)                = do addStmt (IApply f vs n)
+                                                     addStmt (IAssign n LastReturn)
+                                                     resolve ns
+
+eval                            :: Op -> Value -> Value -> Value
+eval Add (IVal m) (IVal n)      = IVal $ m + n
+eval Sub (IVal m) (IVal n)      = IVal $ m - n
+eval Mul (IVal m) (IVal n)      = IVal $ m * n
+eval Div (IVal m) (IVal n)      = IVal $ m `div` n
+                
 -- used for testing                                     
 pos :: SourcePos
 pos = (initialPos "a")                                     
-                                     
-test1 :: Expr
+
 test1 = App pos Add (App pos Add (Var pos "A") (Var pos "B")) (App pos Add (Var pos "A") (Var pos "B"))
 
-test2 :: Expr
 test2 = App pos Add 
                 (Apply pos "fun" [(App pos Add (Var pos "A") (Var pos "B"))]) 
                 (App pos Add 
@@ -142,3 +166,55 @@ test4 = Compare pos GT
                 (App pos Add 
                         (App pos Add (Var pos "A") (Var pos "B")) 
                         (App pos Add (Var pos "A") (Var pos "B")))
+                        
+test5 = App pos Add (App pos Add (Val pos 4) (Val pos 5)) (App pos Add (Val pos 4) (Val pos 5))
+
+test6 = Compare pos GT 
+                (App pos Add 
+                        (App pos Add 
+                                (App pos Add 
+                                        (App pos Add (Val pos 4) (Val pos 5)) 
+                                        (App pos Add (Val pos 4) (Val pos 5))) 
+                                (Val pos 5)) 
+                        (App pos Add 
+                                (Val pos 4) 
+                                (Val pos 5)))
+                (App pos Add 
+                        (App pos Add (Var pos "A") (Var pos "B")) 
+                        (App pos Add (Var pos "A") (Var pos "B")))
+
+test7 = App pos Add 
+                (App pos Add 
+                        (App pos Add 
+                                (App pos Add 
+                                        (App pos Add 
+                                                (App pos Add (Val pos 1) (Val pos 2)) 
+                                                (App pos Add 
+                                                        (Val pos 3) 
+                                                        (Val pos 4))) 
+                                        (App pos Add 
+                                                (App pos Add 
+                                                        (Val pos 5) 
+                                                        (App pos Add 
+                                                                (App pos Add 
+                                                                        (Val pos 6) 
+                                                                        (Val pos 7)) 
+                                                                (App pos Add 
+                                                                        (App pos Add 
+                                                                                (App pos Add (Val pos 8) (Val pos 9)) 
+                                                                                (App pos Add 
+                                                                                        (Val pos 10) 
+                                                                                        (App pos Add 
+                                                                                                (App pos Add (Val pos 11) (Val pos 12)) 
+                                                                                                (App pos Add (Val pos 13) (Val pos 14))))) 
+                                                                        (Val pos 15)))) 
+                                                (App pos Add (Val pos 16) (Val pos 17)))) 
+                                (App pos Add 
+                                        (Val pos 18) 
+                                        (Val pos 19))) 
+                        (App pos Add 
+                                (App pos Add (Val pos 20) (Val pos 21)) 
+                                (App pos Add (Val pos 22) (Val pos 23)))) 
+                (App pos Add 
+                        (Val pos 24) 
+                        (Val pos 25))

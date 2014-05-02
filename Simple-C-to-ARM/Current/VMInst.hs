@@ -12,15 +12,16 @@ module VMInst (
 
 import AST
 import Data.Array.IArray
+import Data.Map
 
 -- Virtual machine
 -- ===============
 
 type Stack            =  Array Integer
 
-type Mem              =  [(Name, Integer)]
-
 type Code             =  [Inst]
+
+type Mem              =  Map Name Integer
 
 data Inst             =  ADDRESS Name
                       |  PUSH Integer

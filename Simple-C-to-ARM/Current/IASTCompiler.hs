@@ -12,6 +12,7 @@ import AST
 import IAST
 import Environment
 import VMInst
+import Helper
 
 comp                            :: IProg -> Code 
 comp p                          = toList code

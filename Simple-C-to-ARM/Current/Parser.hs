@@ -149,7 +149,7 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
                      ; return (Print b)
                      }
               <|> do { m_reserved "return"
-                     ; e <- m_parens exprParser
+                     ; e <- exprParser
                      ; return (Return e)
                      }
                   

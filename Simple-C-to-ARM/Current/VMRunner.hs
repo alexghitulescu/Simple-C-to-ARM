@@ -9,17 +9,19 @@ import Data.Array.IArray
 import Data.Foldable (toList)
 import Data.List (intercalate)
 import qualified Data.Sequence as Sq
+import qualified Data.Map as M
 import AST
 import VMInst
 import ASTCompiler
 --import SampleProg
 
 stackSize = 70
+tempReg = "scratch"
 
-execM                           :: Code -> IO State
-execM c                         = do result <- runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c) + 1, -1, [], stack, NONE', Sq.empty)
-                                     return $ fst result
-                                                                                        where stack = array (0, stackSize) [(i, 99999) | i <- [0..stackSize]]
+execM                   :: Code -> IO State
+execM c                 = do result <- runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c) + 1, -1, M.empty, stack, NONE', Sq.empty)
+                             return $ fst result
+                                                                        where stack = array (0, stackSize) [(i, 99999) | i <- [0..stackSize]]
 
 execPrint                       :: Code -> IO ()
 execPrint c                     = do putStr "Started execution\n"
@@ -67,7 +69,7 @@ push i        =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp< -1 then do 
                                                                         else return ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, i)], cflag, stdout)))
 
 put           :: (Name, Integer) -> ST ()
-put (n, i)    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, (n, i):(remP n m), s, cflag, stdout)))
+put (n, i)    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, M.insert n i m, s, cflag, stdout)))
 
 retrieve      :: Code -> ST Inst
 retrieve c    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (if pc < toInteger(length c) then c !! fromInteger(pc) else HALT, (pc, sb, lr, sp, m, s, cflag, stdout)))
@@ -99,16 +101,25 @@ getRegVal PC    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (pc, (pc,
 getRegVal SB    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (sb, (pc, sb, lr, sp, m, s, cflag, stdout)))
 getRegVal LR    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (lr, (pc, sb, lr, sp, m, s, cflag, stdout)))
 getRegVal SP    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (sp, (pc, sb, lr, sp, m, s, cflag, stdout)))
-getRegVal TEMP  =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (find "scratch" m, (pc, sb, lr, sp, m, s, cflag, stdout)))
-getRegVal (R n) =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (find n m, (pc, sb, lr, sp, m, s, cflag, stdout)))
-getRegVal (G n) =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (find n m, (pc, sb, lr, sp, m, s, cflag, stdout)))
+getRegVal TEMP  =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> case M.lookup tempReg m of 
+                                                                        Nothing -> do putStr $ "could not find temp register\n"
+                                                                                      return (99999, (pc, sb, lr, sp, m, s, cflag, stdout))
+                                                                        Just a  -> return (a, (pc, sb, lr, sp, m, s, cflag, stdout)))
+getRegVal (R n) =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> case M.lookup n m of 
+                                                                        Nothing -> do putStr $ "could not find register: " ++ n ++ "\n"
+                                                                                      return (99999, (pc, sb, lr, sp, m, s, cflag, stdout))
+                                                                        Just a  -> return (a, (pc, sb, lr, sp, m, s, cflag, stdout)))
+getRegVal (G n) =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> case M.lookup n m of 
+                                                                        Nothing -> do putStr $ "could not find global: " ++ n ++ "\n"
+                                                                                      return (99999, (pc, sb, lr, sp, m, s, cflag, stdout))
+                                                                        Just a  -> return (a, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 setRegVal         :: Reg -> Integer -> ST ()
 setRegVal PC i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (i, sb, lr, sp, m, s, cflag, stdout)))
 setRegVal SB i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, i, lr, sp, m, s, cflag, stdout)))
 setRegVal LR i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, i, sp, m, s, cflag, stdout)))
 setRegVal SP i    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, i, m, s, cflag, stdout)))
-setRegVal TEMP i  =  put ("scratch", i)
+setRegVal TEMP i  =  put (tempReg, i)
 setRegVal (R n) i =  put (n, i)
 setRegVal (G n) i =  put (n, i)
 
