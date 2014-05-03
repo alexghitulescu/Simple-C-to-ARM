@@ -28,6 +28,7 @@ data IStmt            =  ILocalVar Name
                       |  IReturn Value 
                       |  IApply Name [Value] Name
                       |  IApp Name Op Value Value 
+                      |  EMPTY_STMT
                          deriving Show
                          
 data Value            =  IVal Integer 

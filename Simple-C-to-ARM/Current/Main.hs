@@ -14,36 +14,45 @@ import VMRunner
 import ASTCompiler
 import IASTCompiler
 import VMInst
+import Helper
 import System.Environment (getArgs)
+import System.Exit
 
 compile                      :: String -> String -> IO()
-compile fileName outputFile  = do prog <- parseFile fileName
-                                  putStr "compilation successful\n"
-                                  prog' <- compE prog
-                                  progToFile  prog' outputFile
-                                  putStr "code generation successful\n"
-
+compile fileName outputFile  = do code <- getCode fileName
+                                  case code of
+                                        [] -> exitFailure
+                                        _  -> do codeToFile  code outputFile
+                                                 exitSuccess
+                                  
 compileToScreen          :: String -> IO()
-compileToScreen fileName = do prog <- parseFile fileName
-                              prog' <- compE prog
-                              progToScreen prog'
+compileToScreen fileName = do code <- getCode fileName
+                              case code of
+                                        [] -> putStr "failed to compile"
+                                        _  -> codeToScreen code
 
 runInVM           :: String -> IO()
-runInVM fileName  = do prog <- parseFile fileName
+runInVM fileName  = do code <- getCode fileName
+                       case code of
+                                [] -> putStr "failed to compile"
+                                _  -> execPrint code
+
+getCode           :: String -> IO Code
+getCode fileName  = do prog <- parseFile fileName
                        prog' <- compE prog
-                       code <- compI prog'
-                       execPrint code
+                       code <- compI $ cleanIProg prog'
+                       return code
 
 printInst           :: String -> IO()
-printInst fileName  = do prog <- parseFile fileName
-                         prog' <- compE prog 
-                         code <- compI prog'
+printInst fileName  = do code <- getCode fileName
                          print code
 
 printIProg           :: String -> IO()
 printIProg fileName  = do prog <- parseFile fileName
                           prog' <- compE prog
                           print prog'
+                          putStr "\n--------------------------\n"
+                          print $ cleanIProg prog'
                           
 main = do args <- getArgs
           case args of 

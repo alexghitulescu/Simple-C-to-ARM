@@ -150,6 +150,7 @@ compStmt (IPrint val)           = do reg <- compVal val TEMP
                                      emit       (PRINT reg)
 compStmt (ISeqn  [])            = return ()
 compStmt (ISeqnE [])            = return ()
+compStmt (EMPTY_STMT)           = return ()
 compStmt (ISeqn  xs)            = mapM_ compStmt xs
 compStmt (ISeqnE xs)            = do dis <- getEnvDisplacement
                                      addEnvLevel
@@ -165,7 +166,7 @@ compStmt (IWhile es v p)        = do lb <- fresh
                                      jumpz v lb'
                                      compStmt p
                                      emitCode   [B NONE lb, LABEL lb']
-compStmt (IIf v p1 (ISeqn []))  = do lb <- fresh
+compStmt (IIf v p1 EMPTY_STMT)  = do lb <- fresh
                                      jumpz v lb
                                      compStmt p1
                                      emit (LABEL lb)

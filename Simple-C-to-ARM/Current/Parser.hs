@@ -187,9 +187,7 @@ parseF inp = case parse mainParser "" inp of
              { Left err ->  do { print err
                                ; return (PSeq [])
                                }
-             ; Right ans -> do { print "parse successful"
-                               ; return ans
-                               }
+             ; Right ans -> return ans
              }
 
 parseFile :: String -> IO (Prog)

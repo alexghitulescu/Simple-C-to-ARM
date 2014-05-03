@@ -148,7 +148,7 @@ execCode c      = do inst <- retrieve c
                      m <- mem
                      (_, _, _, sp, _, s, _, _) <- state
                      let stack = take ((fromInteger sp) + 1) (assocs s)
-                     liftIO $ putStr (show inst ++ "\t\t | " ++ show m ++ "|" ++ show stack ++ "\n")
+                     --liftIO $ putStr (show inst ++ "\t\t | " ++ show m ++ "|" ++ show stack ++ "\n")
                      case inst of (PUSH i)                -> do push i
                                                                 execCode c
                                                                 

@@ -133,7 +133,8 @@ resolve ((IVar n, Node op v1 v2):ns)            = do v1' <- getValue v1
                                                                        else addStmt (IApp n op v1' v2')
                                                      resolve ns
                                              
-resolve ((IVar n, Ap _ f vs):ns)                = do addStmt (IApply f vs n)
+resolve ((IVar n, Ap _ f vs):ns)                = do vs' <- mapM getValue vs
+                                                     addStmt (IApply f vs' n)
                                                      addStmt (IAssign n LastReturn)
                                                      resolve ns
 

@@ -86,6 +86,7 @@ compProg (Fun n ns st)          = do addEnvLevel
 compProg (PSeq [])              = return (IPSeq [])
 compProg (PSeq xs)              = do list <- mapM compProg xs
                                      return (IPSeq list)
+                                     
                 
 compStmt                        :: Stmt -> ST IStmt
 compStmt (LocalVar n)           = do addEnvVar n (P SB 0)

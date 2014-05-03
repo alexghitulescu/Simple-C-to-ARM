@@ -1,7 +1,7 @@
 
 module CodeGen (
-     progToFile,
-     progToScreen
+     codeToFile,
+     codeToScreen
 ) where
 
 import Prelude hiding (EQ, LT, GT)
@@ -69,14 +69,11 @@ toString                = S (\(seq, ns) -> (toList seq, (seq , ns)))
 endl                    :: String
 endl                    = " \n"
 
-progToFile            :: IProg -> String -> IO()
-progToFile p s        = writeFile s $ (intercalate "" (progToARM p))
+codeToFile            :: Code -> String -> IO()
+codeToFile c s        = writeFile s $ (intercalate "" (codeToARMFull c))
 
-progToARM             :: IProg -> [String]
-progToARM             = codeToARMFull . comp
-
-progToScreen          :: IProg -> IO()
-progToScreen          = toScreen . codeToARMFull . comp
+codeToScreen          :: Code -> IO()
+codeToScreen          = toScreen . codeToARMFull
 
 codeToARMFull         :: Code -> [String]
 codeToARMFull c       = [".data" ++ endl] ++ (addVars c (addMain (codeToARM c))) ++ [endl]
