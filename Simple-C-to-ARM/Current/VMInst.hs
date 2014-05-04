@@ -1,13 +1,17 @@
 
 module VMInst (
-    Stack  (..),
-    Mem    (..),
-    Code   (..),
-    Inst   (..),
-    Label  (..),
-    Reg    (..),
-    CFlag  (..),
-    Imd    (..)
+    Stack       (..),
+    Mem         (..),
+    Code        (..),
+    Inst        (..),
+    Label       (..),
+    Reg         (..),
+    CFlag       (..),
+    Imd         (..),
+    Registers   (..),
+    registers,
+    funcRegisters,
+    generalRegisters
 ) where
 
 import AST
@@ -46,6 +50,14 @@ data Inst             =  ADDRESS Name
                          deriving (Show, Eq)
 
 data Reg              = SB | PC | LR | SP | TEMP | R Name | G Name deriving (Show, Eq)
+
+data Registers = Rs [Reg] [Reg] deriving Show
+
+registers = Rs funcRegisters generalRegisters
+
+funcRegisters = [R "r0", R "r1", R "r2", R "r3"]
+
+generalRegisters = [R "r4", R "r5", R "r6", R "r7", R "r8", R "r10", R "r11"]
 
 data Imd              = P Reg Integer | VAL Integer deriving (Show, Eq)
 

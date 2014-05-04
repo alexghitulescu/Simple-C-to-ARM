@@ -56,7 +56,7 @@ printIProg fileName  = do prog <- parseFile fileName
                           let prog'' = cleanIProg prog'
                           print $ prog''
                           putStr "\n--------------------------\n"
-                          print $ analyse prog''
+                          ppIProg $ analyse prog''
                           
 main = do args <- getArgs
           case args of 

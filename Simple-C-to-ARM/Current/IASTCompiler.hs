@@ -7,7 +7,7 @@ module IASTCompiler (
 import Prelude hiding (EQ, LT, GT)
 import Data.Foldable (toList)
 import Data.Sequence
-import Data.List (isPrefixOf)
+import Data.List
 import Text.Parsec.Pos
 import AST
 import IAST
@@ -26,9 +26,19 @@ compI p                         = case err of
                                                  return []
                                    where (_, (_, _, err, code)) = runState' p
                                               
-runState' p = runState (compProg p) (0, emptyTop, [], empty)                                              
+runState' p = runState (compProg p) (0, emptyTop registers, [], empty)                                              
 
 type Error = [String]
+
+data VarPos = NoPos | Pos Imd
+
+data VarReg = NoReg | Rreg Reg
+
+data Info = Inf VarReg VarPos Int
+
+data LevelInfo = Inf2 Registers [(Reg, Imd)]
+
+data VarInfo = Inf3 Name Int
 
 -- State Monad 
 -- ===========
@@ -36,7 +46,7 @@ type Error = [String]
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Integer, Env Imd, Error, Seq Inst)
+type State    = (Integer, Env Name Info LevelInfo, Error, Seq Inst, Env Reg VarInfo Int)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -52,25 +62,54 @@ instance Monad ST where
 -- The function that generates the fresh labels. It is of type ST showing that it has a hidden state. 
 
 fresh                   :: ST Label
-fresh                   =  S (\(n, env, e, c) -> (V n, (n+1, env, e, c)))
+fresh                   =  S (\(n, env, e, c, regEnv) -> (V n, (n+1, env, e, c, regEnv)))
 
 emit                    :: Inst -> ST ()
-emit i                  = S (\(n, env, e, c) -> ((), (n+1, env, e, c |> i)))
+emit i                  = S (\(n, env, e, c, regEnv) -> ((), (n, env, e, c |> i, regEnv)))
 
 emitCode                :: Code -> ST ()
-emitCode c'             = S (\(n, env, e, c) -> ((), (n+1, env, e, c >< fromList c')))
+emitCode c'             = S (\(n, env, e, c, regEnv) -> ((), (n, env, e, c >< fromList c', regEnv)))
 
 writeError              :: String -> ST ()
-writeError e            =  S ((\(n, env, err, c) -> ((), (n, env, e:err, c))))
+writeError e            =  S ((\(n, env, err, c, regEnv) -> ((), (n, env, e:err, c, regEnv))))
 
 addEnvLevel             :: ST ()
-addEnvLevel             =  S (\(n, env, e, c) -> ((), (n, addLevel env, e, c)))
+addEnvLevel             =  S (\(n, env, e, c, regEnv) -> ((), (n, addLevel env, e, c, regEnv)))
 
 remEnvLevel             :: ST ()
-remEnvLevel             =  S (\(n, env, e, c) -> ((), (n, removeLevel env, e, c)))
+remEnvLevel             =  S (\(n, env, e, c, regEnv) -> ((), (n, removeLevel env, e, c, regEnv)))
 
-addEnvVar               :: Name -> Imd -> ST ()
-addEnvVar q (P r d)     =  S (\(n, env, e, c) -> ((), (n, env `addVar` (q,P r d), e, c)))
+addEnvVar               :: Name -> Info -> ST ()
+addEnvVar q i           =  S (\(n, env, e, c, regEnv) -> ((), (n, env `addVar` (q, i), e, c, regEnv)))
+
+setEnvDisplacement      :: Integer -> ST ()
+setEnvDisplacement i    =  S (\(n, env, e, c, regEnv) -> ((), (n, env `setDisplacement` i, e, c, regEnv)))
+
+getEnvDisplacement      :: ST Integer
+getEnvDisplacement      =  S (\(n, env, e, c, regEnv) -> (displacement env, (n, env, e, c, regEnv)))
+
+addEnvDisplacement      :: Integer -> ST ()
+addEnvDisplacement i    =  S (\(n, env, e, c, regEnv) -> ((), (n, env `addDisplacement` i, e, c, regEnv)))
+
+copyEnvExtra            :: Env Info -> ST ()
+copyEnvExtra oEnv       =  S (\(n, env, e, c, regEnv) -> ((), (n, env `copyExtra` oEnv, e, c, regEnv)))
+
+getEnv                  :: ST (Env Name Info LevelInfo)
+getEnv                  =  S (\(n, env, e, c, regEnv) -> (env, (n, env, e, c, regEnv)))
+
+getRegEnv               :: ST (Env Reg VarInfo Int)
+getRegEnv               =  S (\(n, env, e, c, regEnv) -> (regEnv, (n, env, e, c, regEnv)))
+
+removeFuncReg           :: Reg -> ST ()
+removeFuncReg r         =  S (\(n, env, e, c, regEnv) -> let Inf2 (Rs fReg a) b = getExtra env in
+                                                         let fReg' = delete r fReg in
+                                                         ((), (n, env `setExtra` (Inf2 (Rs fReg' a) b), e, c, regEnv)))
+
+removeGeneralReg        :: Reg -> ST ()
+removeGeneralReg r      =  S (\(n, env, e, c, regEnv) -> let Inf2 (Rs a gReg) b = getExtra env in
+                                                         let gReg' = delete r gReg in
+                                                         ((), (n, env `setExtra` (Inf2 (Rs a gReg') b), e, c, regEnv)))
+
 
 addTempVar              :: Name -> ST()
 addTempVar q            = if isPrefixOf "@" q 
@@ -83,46 +122,60 @@ addTempVar q            = if isPrefixOf "@" q
                                         Just p  -> return ()
                              else return ()
 
-getEnvVar               :: Name -> ST Imd
-getEnvVar q             =  S (\(n, env, e, c) -> case env `getVar` q of 
-                                                Nothing -> (P SB 0, (n, env, ("could not find " ++ (show q)):e, c))
-                                                Just p  -> (p, (n, env, e, c)))
+getEnvVar               :: Name -> ST Info
+getEnvVar q             = do env <- getEnv 
+                             case env `getVar` q of 
+                                        Nothing -> do writeError $ "internal error: could not find " ++ (show q)
+                                                      return (Inf NoReg NoPos 0)
+                                        Just p  -> return p
+                                                   
 
-getEnvVar2               :: Name -> SourcePos -> ST Imd
-getEnvVar2 q p           = do env <- getEnv 
-                              case env `getVar` q of 
-                                                Nothing -> do let l = sourceLine p
-                                                              let c = sourceColumn p
-                                                              writeError ("could not find " ++ (show q) ++ "line: " ++ show l ++ ", column: " ++ show c)
-                                                              return (P SB 0)
-                                                Just p  -> return p
-                                                                                               
-
-setEnvDisplacement      :: Integer -> ST ()
-setEnvDisplacement i    =  S (\(n, env, e, c) -> ((), (n, env `setDisplacement` i, e, c)))
-
-getEnvDisplacement      :: ST Integer
-getEnvDisplacement      =  S (\(n, env, e, c) -> (displacement env, (n, env, e, c)))
-
-addEnvDisplacement      :: Integer -> ST ()
-addEnvDisplacement i    =  S (\(n, env, e, c) -> ((), (n, env `addDisplacement` i, e, c)))
-
-getEnv                  :: ST (Env Imd)
-getEnv                  =  S (\(n, env, e, c) -> (env, (n, env, e, c)))
-
-
+getRegMin               :: Int -> ST (Reg, Name)
+getRegMin i             = do regEnv <- getRegEnv
+                             let m = getMap regEnv
+                             let (r, Inf3 n _) = minimumBy comp (M.toList m)
+                                        where
+                                                comp (_, Inf3 _ x) (_, Inf3 _ y) | x > i     = Prelude.LT
+                                                                                 | y > i     = Prelude.GT
+                                                                                 | otherwise = compare x y
+                             return (r, n)
+                             
+                                                   
+-- name of variable, register to be assigned to, extra info
+newInfoReg              :: Name -> Reg -> Extra -> ST Info
+newInfoReg n r e        = do removeFuncReg r
+                             case e `getVarNumber` n of
+                                Nothing -> return (Inf r NoPos 0)
+                                Just a  -> return (Inf r NoPos a)
+                                
+newInfo                 :: Name -> Extra -> Info
+newInfo n e             = case e `getVarNumber` n of
+                                Nothing -> Inf NoReg NoPos 0
+                                Just a  -> Inf NoReg NoPos a
+                                
+newInfoStack            :: Name -> Integer -> Extra -> Info
+newInfostack n i e      = case e `getVarNumber` n of
+                                Nothing -> return (Inf NoReg (P SB (-i)) 0)
+                                Just a  -> return (Inf NoReg (P SB (-i)) a)
+                                                
 -- [names of arguments] -> where should it start
-addFuncArgs             :: [Name] -> Integer -> ST ()
+addFuncArgs             :: [Name] -> Integer -> Extra -> ST ()
 addFuncArgs [] _        = return ()
-addFuncArgs (n:ns) i    = do addEnvVar n (P SB (-i))
+addFuncArgs (n:ns) i e  
+           | i <= 3     = do info <- newInfoReg n (R $ "r" ++ show i) e
+                             addEnvVar n info
+                             addFuncArgs ns (i + 1)
+           | otherwise  = do let info = newInfoStack n (i - 3) e
+                             addEnvVar n info
                              addFuncArgs ns (i + 1)
 
 compProg                        :: IProg -> ST ()
-compProg (IGlobalVar n e)       = do addEnvVar n (P (G n) 0)
+compProg (IGlobalVar n)         = do info <- newInfoReg n (G n) Empt
+                                     addEnvVar n info
                                      emit       (ADDRESS n)
 compProg (IFun n ns st e)       = do addEnvLevel
-                                     --take space for arguments on the stack
-                                     addFuncArgs ns 1
+                                     --prepare the environment for function arguments
+                                     addFuncArgs ns 0 e
                                      setEnvDisplacement 2
                                      --save SB, LR and execute the code and increment SP by the number of args.
                                      emitCode   [LABEL (N n), PUSHV SB, MOV SB (P SP 0), PUSHV LR]
@@ -133,23 +186,22 @@ compProg (IFun n ns st e)       = do addEnvLevel
                                      emitCode   [BX NONE LR]
                                      -- restore SP to before arguments
                                      remEnvLevel
-compProg (IPSeq [  ] e)         = return ()
-compProg (IPSeq (xs) e)         = mapM_ compProg xs
+compProg (IPSeq xs)             = mapM_ compProg xs
                 
                 
 compStmt                        :: IStmt -> ST ()
-compStmt (ILocalVar n e)        = do dis <- getEnvDisplacement
-                                     addEnvVar n (P SB dis)
-                                     addEnvDisplacement 1
-                                     emit       (ADD SP SP (VAL 1))
+compStmt (ILocalVar n e)        = do let info = newInfo n e
+                                     addEnvVar n info
+                                     --addEnvDisplacement 1
+                                     --emit       (ADD SP SP (VAL 1))
 compStmt (IAssign v val e)      = do posV <- getEnvVar v
                                      reg <- compVal val TEMP
                                      emit (STR reg posV)
 compStmt (IPrint val e)         = do reg <- compVal val TEMP
                                      emit       (PRINT reg)
 compStmt (E_STMT)               = return ()
-compStmt (ISeqn  xs e)          = mapM_ compStmt xs
-compStmt (ISeqnE xs e)          = do dis <- getEnvDisplacement
+compStmt (ISeqn  xs)            = mapM_ compStmt xs
+compStmt (ISeqnE xs)            = do dis <- getEnvDisplacement
                                      addEnvLevel
                                      setEnvDisplacement dis
                                      mapM_ compStmt xs
@@ -190,7 +242,7 @@ compStmt (IApp n op v1 v2 e)    = do addTempVar n
                                      emit (STR TEMP posV)
 
 
-compVal                         :: Value -> Reg -> ST Reg
+compVal                         :: Value -> ST Reg
 compVal (IVal i) reg            = do emit (MOV reg (VAL i))
                                      return reg
 compVal (IVar n) reg            = do posVar <- getEnvVar n
