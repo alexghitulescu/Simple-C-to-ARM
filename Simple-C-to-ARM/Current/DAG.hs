@@ -12,6 +12,7 @@ import Prelude hiding (EQ, LT, GT)
 import AST
 import IAST
 import Helper
+import Extra
 
 transform                       :: Expr -> (Sq.Seq IStmt, Value)
 transform e                     = (seq, val)
@@ -130,12 +131,12 @@ resolve ((_     , Leaf _):ns)                   = resolve ns
 resolve ((IVar n, Node op v1 v2):ns)            = do v1' <- getValue v1
                                                      v2' <- getValue v2
                                                      if isVal2 v1' v2' then add2 (IVar n) (Leaf (eval op v1' v2'))
-                                                                       else addStmt (IApp n op v1' v2')
+                                                                       else addStmt (IApp n op v1' v2' Empt)
                                                      resolve ns
                                              
 resolve ((IVar n, Ap _ f vs):ns)                = do vs' <- mapM getValue vs
-                                                     addStmt (IApply f vs' n)
-                                                     addStmt (IAssign n LastReturn)
+                                                     addStmt (IApply f vs' n Empt)
+                                                     addStmt (IAssign n LastReturn Empt)
                                                      resolve ns
 
 eval                            :: Op -> Value -> Value -> Value

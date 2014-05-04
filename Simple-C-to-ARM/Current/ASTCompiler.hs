@@ -13,6 +13,7 @@ import IAST
 import Environment
 import DAG
 import VMInst
+import Extra
 
 comp                            :: Prog -> IProg
 comp p                          = fst $ runState' p
@@ -20,13 +21,17 @@ comp p                          = fst $ runState' p
 compE                           :: Prog -> IO IProg
 compE p                         = case err of
                                         [] -> return prog
-                                        xs -> do print xs
-                                                 return (IPSeq [])
+                                        xs -> do printError xs
+                                                 return (IPSeq [] Empt)
                                    where (prog, (_, err)) = runState' p
                                               
 runState' p = runState (compProg p) (emptyTop, [])                                              
 
 type Error = [String]
+
+printError              :: Error -> IO()
+printError []           = return ()
+printError xs           = mapM_ putStrLn xs
 
 -- State Monad 
 -- ===========
@@ -34,7 +39,7 @@ type Error = [String]
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Env Imd, Error)
+type State    = (Env Type, Error)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -57,89 +62,92 @@ addEnvLevel             =  S (\(env, e) -> ((), (addLevel env, e)))
 remEnvLevel             :: ST ()
 remEnvLevel             =  S (\(env, e) -> ((), (removeLevel env, e)))
 
-addEnvVar               :: Name -> Imd -> ST ()
-addEnvVar q (P r d)     =  S (\(env, e) -> ((), (env `addVar` (q,P r d), e)))
+addEnvVar               :: Name -> Type -> ST ()
+addEnvVar q t           =  S (\(env, e) -> ((), (env `addVar` (q, t), e)))
 
-getEnvVar                :: Name -> SourcePos -> ST Imd
+getEnvVar                :: Name -> SourcePos -> ST Type
 getEnvVar q p            = do env <- getEnv 
                               case env `getVar` q of 
                                                 Nothing -> do writeError $ "undefined variable " ++ show q ++ " near: " ++ show p
-                                                              return (P SB 0)
-                                                Just p  -> return p
+                                                              return Int
+                                                Just a  -> return a
 
-getEnv                  :: ST (Env Imd)
+getEnv                  :: ST (Env Type)
 getEnv                  =  S (\(env, e) -> (env, (env, e)))
 
 -- [names of arguments] -> where should it start
 addFuncArgs             :: [Name] -> ST ()
 addFuncArgs []          = return ()
-addFuncArgs (n:ns)      = do addEnvVar n (P SB (0))
+addFuncArgs (n:ns)      = do addEnvVar n Int
                              addFuncArgs ns
 
 compProg                        :: Prog -> ST IProg
-compProg (GlobalVar n pos)      = return (IGlobalVar n)
-compProg (Fun n ns st)          = do addEnvLevel
+compProg (GlobalVar n pos)      = return (IGlobalVar n Empt)
+compProg (Fun n ns st)          = do addEnvVar n Int
+                                     addEnvLevel
                                      addFuncArgs ns
                                      stmt <- compStmt st
                                      remEnvLevel
-                                     return (IFun n ns stmt)
-compProg (PSeq [])              = return (IPSeq [])
+                                     return (IFun n ns stmt Empt)
+compProg (PSeq [])              = return (IPSeq [] Empt)
 compProg (PSeq xs)              = do list <- mapM compProg xs
-                                     return (IPSeq list)
+                                     return (IPSeq list Empt)
                                      
                 
 compStmt                        :: Stmt -> ST IStmt
-compStmt (LocalVar n)           = do addEnvVar n (P SB 0)
-                                     return (ILocalVar n)
+compStmt (LocalVar n)           = do addEnvVar n Int
+                                     return (ILocalVar n Empt)
 compStmt (Assign pos n e)       = do posV <- getEnvVar n pos
                                      compAssign n e
 compStmt (Print e)              = tryExpr [Int] e $ do { let (seq, var) = transform e
-                                                       ; let stmt = toList $ seq |> (IPrint var)
-                                                       ; return (ISeqn stmt)
+                                                       ; let stmt = toList $ seq |> (IPrint var Empt)
+                                                       ; return (ISeqn stmt Empt)
                                                        }
-compStmt (Seqn  [])             = return (ISeqn [])
-compStmt (SeqnE [])             = return (ISeqn [])
+compStmt (Seqn  [])             = return (E_STMT)
+compStmt (SeqnE [])             = return (E_STMT)
 compStmt (Seqn  xs)             = do list <- mapM compStmt xs
-                                     return (ISeqn list)
-compStmt (SeqnE xs)             = do list <- mapM compStmt xs
-                                     return (ISeqnE list)
+                                     return (ISeqn list Empt)
+compStmt (SeqnE xs)             = do addEnvLevel
+                                     list <- mapM compStmt xs
+                                     remEnvLevel
+                                     return (ISeqnE list Empt)
 compStmt (While e p)            = tryExpr intAndBool e $ do { let (seq, var) = transform e
                                                             ; let stmt = toList seq 
                                                             ; p' <- compStmt p
-                                                            ; return (IWhile stmt var p')
+                                                            ; return (IWhile stmt var p' Empt)
                                                             }
 compStmt (If e p1 p2)           = tryExpr intAndBool e $ do { p1' <- compStmt p1
                                                             ; p2' <- compStmt p2
                                                             ; let (seq, var) = transform e
-                                                            ; let stmt = toList $ seq |> (IIf var p1' p2')
-                                                            ; return (ISeqn stmt)
+                                                            ; let stmt = toList $ seq |> (IIf var p1' p2' Empt)
+                                                            ; return (ISeqn stmt Empt)
                                                             }
 compStmt (Ex e)                 = tryExpr anyType e $ do { let (seq, var) = transform e
-                                                         ; return (ISeqn $ toList seq)
+                                                         ; return (ISeqn (toList seq) Empt)
                                                          }
 compStmt (Return e)             = tryExpr [Int] e $ do { let (seq, var) = transform e
-                                                       ; let stmt = toList $ seq |> (IReturn var)
-                                                       ; return (ISeqn stmt)
+                                                       ; let stmt = toList $ seq |> (IReturn var Empt)
+                                                       ; return (ISeqn stmt Empt)
                                                        }
 
 tryExpr                         :: [Type] -> Expr -> ST IStmt -> ST IStmt
 tryExpr t e a                   = if validExpression t e 
                                         then a
                                         else do writeError $ "Invalid expression type near " ++ show (getExprSrc e)
-                                                return (ISeqn [])
+                                                return (ISeqn [] Empt)
                                                 
                                      
 compAssign                      :: Name -> Expr -> ST IStmt
-compAssign n (Val _ i)          = return (IAssign n (IVal i))
+compAssign n (Val _ i)          = return (IAssign n (IVal i) Empt)
 compAssign n (Var pos v)        = do posV <- getEnvVar v pos
-                                     return (IAssign n (IVar v))
+                                     return (IAssign n (IVar v) Empt)
 compAssign _ (Lit pos _)        = do writeError $ "Invalid assignment near " ++ show pos
-                                     return (ISeqn [])
+                                     return (ISeqn [] Empt)
 compAssign _ (Compare p _ _ _)  = do writeError $ "Invalid assignment near " ++ show p
-                                     return (ISeqn [])
+                                     return (ISeqn [] Empt)
 compAssign n expr               = do let (seq, var) = transform expr
-                                     let stmt = toList $ seq |> (IAssign n var)
-                                     return (ISeqn stmt)
+                                     let stmt = toList $ seq |> (IAssign n var Empt)
+                                     return (ISeqn stmt Empt)
                                      
 validExpression                 :: [Type] -> Expr -> Bool
 validExpression t e             = (parseType e) `elem` t

@@ -15,8 +15,9 @@ import VMInst
 import ASTCompiler
 --import SampleProg
 
-stackSize = 70
+stackSize = 2000
 tempReg = "scratch"
+end = 1000000
 
 execM                   :: Code -> IO State
 execM c                 = do result <- runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c) + 1, -1, M.empty, stack, NONE', Sq.empty)
@@ -59,13 +60,13 @@ nothing       :: ST ()
 nothing       =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 pop           :: ST Integer
-pop           =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp < 0 then do putStr ("sp in pop is: " ++ show sp ++ "\n")
-                                                                                return (s ! 0, (10000, sb, lr, 0, m, s, cflag, stdout))
+pop           =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp < 0 then do putStr ("pop; stack underflow: " ++ show sp ++ "\n")
+                                                                                return (s ! 0, (end, sb, lr, 0, m, s, cflag, stdout))
                                                                         else return (s ! sp, (pc, sb, lr, sp - 1, m, s, cflag, stdout)))
 
 push          :: Integer -> ST ()
-push i        =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp< -1 then do putStr ("sp in push is: " ++ show sp ++ "\n")
-                                                                                return ((), (10000, sb, lr, sp + 1, m, s, cflag, stdout))
+push i        =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp< -1 then do putStr ("push; stack underflow: " ++ show sp ++ "\n")
+                                                                                return ((), (end, sb, lr, sp + 1, m, s, cflag, stdout))
                                                                         else return ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, i)], cflag, stdout)))
 
 put           :: (Name, Integer) -> ST ()
@@ -87,8 +88,7 @@ state         :: ST State
 state         =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((pc, sb, lr, sp, m, s, cflag, stdout), (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 savePCToLR    :: ST ()
-savePCToLR    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do putStr $ "saving pc to lr (val:" ++ show pc ++ ")\n"
-                                                                 return ((), (pc, sb, pc, sp, m, s, cflag, stdout)))
+savePCToLR    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, pc, sp, m, s, cflag, stdout)))
 
 setCflag      :: CFlag -> ST ()
 setCflag flag =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s, flag, stdout)))
@@ -124,14 +124,14 @@ setRegVal (R n) i =  put (n, i)
 setRegVal (G n) i =  put (n, i)
 
 load            :: Integer -> ST Integer
-load i          =  if i < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do putStr ("i in load is: " ++ show i ++ "\n")
-                                                                                 return (s ! 0, (10000, sb, lr, sp, m, s, cflag, stdout)))
+load i          =  if i < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do putStr ("loading off stack: " ++ show i ++ "\n")
+                                                                                 return (0, (end, sb, lr, sp, m, s, cflag, stdout)))
                             else S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (s ! i, (pc, sb, lr, sp, m, s, cflag, stdout)))
 --load i          =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (s ! i, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 store           :: Integer -> Integer -> ST ()
-store pos i     =  if i < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do putStr ("i in store is: " ++ show i ++ "\n")
-                                                                                 return ((), (10000, sb, lr, sp, m, s, cflag, stdout)))
+store pos i     =  if i < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do putStr ("storing off stack: " ++ show i ++ "\n")
+                                                                                 return ((), (end, sb, lr, sp, m, s, cflag, stdout)))
                             else S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag, stdout)))
 --store pos i     =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag, stdout)))
 
@@ -145,10 +145,10 @@ printToStd string = S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc
 execCode        :: Code -> ST State
 execCode c      = do inst <- retrieve c
                      next
-                     m <- mem
+                     {-m <- mem
                      (_, _, _, sp, _, s, _, _) <- state
                      let stack = take ((fromInteger sp) + 1) (assocs s)
-                     --liftIO $ putStr (show inst ++ "\t\t | " ++ show m ++ "|" ++ show stack ++ "\n")
+                     liftIO $ putStr (show inst ++ "\t\t | " ++ show m ++ "|" ++ show stack ++ "\n")-}
                      case inst of (PUSH i)                -> do push i
                                                                 execCode c
                                                                 
@@ -198,6 +198,7 @@ execCode c      = do inst <- retrieve c
                                   (LABEL l)               -> execCode c
                                                                 
                                   (PRINT reg)             -> do s <- getRegVal reg
+                                                                liftIO $ putStr(show s ++ "\n")
                                                                 printToStd (show s ++ "\n")
                                                                 execCode c
                                                                 
@@ -225,7 +226,6 @@ execCode c      = do inst <- retrieve c
                                                                 
                                   (CMP r1 imd)            -> do r1val <- getRegVal r1
                                                                 imdval <- getImdVal imd
-                                                                liftIO $ putStr (show r1val ++ " : " ++ show imdval ++ "\n")
                                                                 setCflag (compare r1val imdval)
                                                                 execCode c
                                   (other)                 -> do put ("other: " ++ show other, 0)
@@ -247,7 +247,7 @@ execInstBX              :: Code -> Cond -> Reg -> ST State
 execInstBX c cond reg   = do b <- validCflag cond
                              if b then
                                 do pos <- getRegVal reg
-                                   liftIO $ putStr ("jumping to position: " ++ show pos ++ "\n")
+                                   --liftIO $ putStr ("jumping to position: " ++ show pos ++ "\n")
                                    jumpI c pos
                              else 
                                 nothing
@@ -256,7 +256,7 @@ execInstBX c cond reg   = do b <- validCflag cond
 execInstB               :: Code -> Cond -> Label -> ST State
 execInstB c cond l      = do b <- validCflag cond
                              if b then
-                                do liftIO $ putStr ("jumping to label: " ++ show l ++ "\n")
+                                do --liftIO $ putStr ("jumping to label: " ++ show l ++ "\n")
                                    jump c l
                              else 
                                 nothing

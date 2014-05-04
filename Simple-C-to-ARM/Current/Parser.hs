@@ -132,7 +132,7 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
                           ; q <- m_braces stmtParser
                           ; return (If b (SeqnE [p]) (SeqnE [q]))
                           }
-                       <|> return (If b p (Seqn []))
+                       <|> return (If b (SeqnE [p]) (Seqn []))
                      }
               <|> do { m_reserved "while"
                      ; b <- m_parens exprParser

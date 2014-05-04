@@ -7,12 +7,13 @@ module IASTCompiler (
 import Prelude hiding (EQ, LT, GT)
 import Data.Foldable (toList)
 import Data.Sequence
+import Data.List (isPrefixOf)
 import Text.Parsec.Pos
 import AST
 import IAST
-import Environment
 import VMInst
 import Helper
+import Environment
 
 comp                            :: IProg -> Code 
 comp p                          = toList code
@@ -72,13 +73,15 @@ addEnvVar               :: Name -> Imd -> ST ()
 addEnvVar q (P r d)     =  S (\(n, env, e, c) -> ((), (n, env `addVar` (q,P r d), e, c)))
 
 addTempVar              :: Name -> ST()
-addTempVar q            = do env <- getEnv
-                             case env `getVarCLevel` q of 
+addTempVar q            = if isPrefixOf "@" q 
+                             then do env <- getEnv
+                                     case env `getVarCLevel` q of 
                                         Nothing -> do dis <- getEnvDisplacement
                                                       addEnvVar q (P SB dis)
                                                       addEnvDisplacement 1
                                                       emit (ADD SP SP (VAL 1))
                                         Just p  -> return ()
+                             else return ()
 
 getEnvVar               :: Name -> ST Imd
 getEnvVar q             =  S (\(n, env, e, c) -> case env `getVar` q of 
@@ -115,9 +118,9 @@ addFuncArgs (n:ns) i    = do addEnvVar n (P SB (-i))
                              addFuncArgs ns (i + 1)
 
 compProg                        :: IProg -> ST ()
-compProg (IGlobalVar n)         = do addEnvVar n (P (G n) 0)
+compProg (IGlobalVar n e)       = do addEnvVar n (P (G n) 0)
                                      emit       (ADDRESS n)
-compProg (IFun n ns st)         = do addEnvLevel
+compProg (IFun n ns st e)       = do addEnvLevel
                                      --take space for arguments on the stack
                                      addFuncArgs ns 1
                                      setEnvDisplacement 2
@@ -130,59 +133,53 @@ compProg (IFun n ns st)         = do addEnvLevel
                                      emitCode   [BX NONE LR]
                                      -- restore SP to before arguments
                                      remEnvLevel
-compProg (IPSeq [    ])         = return ()
-compProg (IPSeq (x:xs))         = do compProg x
-                                     compProg (IPSeq xs)
-                
-
---compFun (n ns st)
+compProg (IPSeq [  ] e)         = return ()
+compProg (IPSeq (xs) e)         = mapM_ compProg xs
                 
                 
 compStmt                        :: IStmt -> ST ()
-compStmt (ILocalVar n)          = do dis <- getEnvDisplacement
+compStmt (ILocalVar n e)        = do dis <- getEnvDisplacement
                                      addEnvVar n (P SB dis)
                                      addEnvDisplacement 1
                                      emit       (ADD SP SP (VAL 1))
-compStmt (IAssign v val)        = do posV <- getEnvVar v
+compStmt (IAssign v val e)      = do posV <- getEnvVar v
                                      reg <- compVal val TEMP
                                      emit (STR reg posV)
-compStmt (IPrint val)           = do reg <- compVal val TEMP
+compStmt (IPrint val e)         = do reg <- compVal val TEMP
                                      emit       (PRINT reg)
-compStmt (ISeqn  [])            = return ()
-compStmt (ISeqnE [])            = return ()
-compStmt (EMPTY_STMT)           = return ()
-compStmt (ISeqn  xs)            = mapM_ compStmt xs
-compStmt (ISeqnE xs)            = do dis <- getEnvDisplacement
+compStmt (E_STMT)               = return ()
+compStmt (ISeqn  xs e)          = mapM_ compStmt xs
+compStmt (ISeqnE xs e)          = do dis <- getEnvDisplacement
                                      addEnvLevel
                                      setEnvDisplacement dis
                                      mapM_ compStmt xs
                                      dis2 <- getEnvDisplacement
                                      remEnvLevel
                                      emit (SUB SP SP (VAL (dis2 - dis)))
-compStmt (IWhile es v p)        = do lb <- fresh
+compStmt (IWhile es v p e)      = do lb <- fresh
                                      lb' <- fresh
                                      emit (LABEL lb) 
                                      mapM_ compStmt es 
                                      jumpz v lb'
                                      compStmt p
                                      emitCode   [B NONE lb, LABEL lb']
-compStmt (IIf v p1 EMPTY_STMT)  = do lb <- fresh
+compStmt (IIf v p1 E_STMT e)    = do lb <- fresh
                                      jumpz v lb
                                      compStmt p1
                                      emit (LABEL lb)
-compStmt (IIf v p1 p2)          = do lb <- fresh
+compStmt (IIf v p1 p2 e)        = do lb <- fresh
                                      lb' <- fresh
                                      jumpz v lb
                                      compStmt p1 
                                      emitCode [B NONE lb', LABEL lb] 
                                      compStmt p2 
                                      emit (LABEL lb')
-compStmt (IReturn v)            = do reg <- compVal v (R "r0")
+compStmt (IReturn v e)          = do reg <- compVal v (R "r0")
                                      return ()
-compStmt (IApply n vals res)    = do addTempVar res
+compStmt (IApply n vals res e)  = do addTempVar res -- result
                                      prepareFunctionCall vals
                                      emit (BL NONE (N n))
-compStmt (IApp n op v1 v2)      = do addTempVar n
+compStmt (IApp n op v1 v2 e)    = do addTempVar n
                                      r1 <- compVal v1 (R "r11")
                                      r2 <- compVal v2 TEMP
                                      case op of Add -> emit (ADD TEMP r1 (P r2 0))
@@ -207,8 +204,8 @@ prepareFunctionCall []          = return ()
 prepareFunctionCall (v:vs)      = do reg <- compVal v TEMP
                                      emit (PUSHV reg)
                                      prepareFunctionCall vs
-                                        
-              
+
+
 jumpz                           :: Value -> Label -> ST ()
 jumpz (IVal i) lb               = if i == 0 then emit (B NONE lb) else return ()
 jumpz (IVar v) lb               = do posV <- getEnvVar v

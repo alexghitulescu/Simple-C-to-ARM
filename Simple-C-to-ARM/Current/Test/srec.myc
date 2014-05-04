@@ -14,7 +14,7 @@ int b(int a)
 {
 	if(a < 10)
 	{
-		return (6);
+		return (10);
 	}
 	else
 	{
@@ -24,5 +24,13 @@ int b(int a)
 
 int main () 
 {
-	print (fib(b(19) * 2));
+	int a;
+	a = 10;
+	int b;
+	b = 20;
+	int c;
+	c = a;
+	//print (fib(b(19) * 2));
+	print (fib(20));
+	print (b);
 }

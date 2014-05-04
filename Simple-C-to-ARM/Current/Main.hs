@@ -17,6 +17,7 @@ import VMInst
 import Helper
 import System.Environment (getArgs)
 import System.Exit
+import Analyser
 
 compile                      :: String -> String -> IO()
 compile fileName outputFile  = do code <- getCode fileName
@@ -28,13 +29,13 @@ compile fileName outputFile  = do code <- getCode fileName
 compileToScreen          :: String -> IO()
 compileToScreen fileName = do code <- getCode fileName
                               case code of
-                                        [] -> putStr "failed to compile"
+                                        [] -> putStr "failed to compile\n"
                                         _  -> codeToScreen code
 
 runInVM           :: String -> IO()
 runInVM fileName  = do code <- getCode fileName
                        case code of
-                                [] -> putStr "failed to compile"
+                                [] -> putStr "failed to compile\n"
                                 _  -> execPrint code
 
 getCode           :: String -> IO Code
@@ -52,7 +53,10 @@ printIProg fileName  = do prog <- parseFile fileName
                           prog' <- compE prog
                           print prog'
                           putStr "\n--------------------------\n"
-                          print $ cleanIProg prog'
+                          let prog'' = cleanIProg prog'
+                          print $ prog''
+                          putStr "\n--------------------------\n"
+                          print $ analyse prog''
                           
 main = do args <- getArgs
           case args of 
