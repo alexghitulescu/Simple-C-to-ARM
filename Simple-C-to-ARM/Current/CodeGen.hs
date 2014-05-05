@@ -145,8 +145,7 @@ instToARM (BL cond l)       =    add4 "\t bl" (condToARM cond) " " (getLabel l)
 instToARM (BX cond r)       =    add4 "\t bx" (condToARM cond) " " (getRegVal r)
 instToARM (LABEL l)         =    add2 (getLabel l) ":" 
 
-instToARM (PRINT reg)       = do commentB "PRINT"
-                                 add3 "\t add r1, " (getRegVal reg) ", #0"
+instToARM (PRINT)           = do commentB "PRINT"
                                  add1 "\t ldr r0, addr_of_nr"  
                                  add1 "\t bl printf"
                                  comment "end"

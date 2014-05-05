@@ -25,7 +25,7 @@ compE p                         = case err of
                                                  return (IPSeq [])
                                    where (prog, (_, err)) = runState' p
                                               
-runState' p = runState (compProg p) (emptyTop, [])                                              
+runState' p = runState (compProg p) (emptyTop 0, [])                                              
 
 type Error = [String]
 
@@ -39,7 +39,7 @@ printError xs           = mapM_ putStrLn xs
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Env Type, Error)
+type State    = (Env Name Type Int, Error)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -57,7 +57,7 @@ writeError              :: String -> ST ()
 writeError e            =  S ((\(env, err) -> ((), (env, e:err))))
 
 addEnvLevel             :: ST ()
-addEnvLevel             =  S (\(env, e) -> ((), (addLevel env, e)))
+addEnvLevel             =  S (\(env, e) -> ((), (addLevel env 0, e)))
 
 remEnvLevel             :: ST ()
 remEnvLevel             =  S (\(env, e) -> ((), (removeLevel env, e)))
@@ -72,7 +72,7 @@ getEnvVar q p            = do env <- getEnv
                                                               return Int
                                                 Just a  -> return a
 
-getEnv                  :: ST (Env Type)
+getEnv                  :: ST (Env Name Type Int)
 getEnv                  =  S (\(env, e) -> (env, (env, e)))
 
 -- [names of arguments] -> where should it start

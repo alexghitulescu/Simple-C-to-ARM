@@ -1,6 +1,7 @@
 module Extra (
     addName,
     addValue,
+    addValue2,
     addValues,
     incNumber,
     copyNumber,
@@ -21,6 +22,15 @@ addValue Empt v                         = addValue (emptyExtra 0) v
 addValue (I1 map i) (IVar n)            = I1 (insert n i map) i
 addValue e        (IComp _ v1 v2)       = let extra = addValue e v1 in addValue extra v2
 addValue e        _                     = e
+
+addValue2                               :: Extra -> Extra -> Value -> Extra
+addValue2 Empt e v                      = addValue2 (emptyExtra 0) e v
+addValue2 e Empt v                      = addValue e v
+addValue2 (I1 map i) e (IVar n)         = case e `getVarNumber` n of
+                                                Nothing -> I1 (insert n i map) i
+                                                Just a  -> I1 (insert n a map) i
+addValue2 e1 e2   (IComp _ v1 v2)       = let e1' = addValue2 e1 e2 v1 in addValue2 e1' e2 v2
+addValue2 e  _    _                     = e
 
 addValues                               :: Extra -> [Value] -> Extra
 addValues e []                          = e

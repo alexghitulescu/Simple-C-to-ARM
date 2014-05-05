@@ -197,7 +197,7 @@ execCode c      = do inst <- retrieve c
                                                                 
                                   (LABEL l)               -> execCode c
                                                                 
-                                  (PRINT reg)             -> do s <- getRegVal reg
+                                  (PRINT)                 -> do s <- getRegVal (R "r1")
                                                                 liftIO $ putStr(show s ++ "\n")
                                                                 printToStd (show s ++ "\n")
                                                                 execCode c

@@ -2,6 +2,8 @@ module Environment (
     Env (..),
     addVar,
     getVar,
+    setVar,
+    getMap,
     getExtra,
     setExtra,
     copyExtra,
@@ -18,6 +20,7 @@ import AST
 import VMInst
 import qualified Data.Map as M
 import Data.List
+import Data.Maybe
 
 test' :: Char
 test' = test (M.fromList [('a', 15), ('b', 14), ('c', 13)]) 15
@@ -30,6 +33,11 @@ test m i = let minimum' = fst $ minimumBy comp (M.toList m)
                                            | y > i     = Prelude.GT
                                            | otherwise = compare x y
          in minimum'
+         
+test2 :: M.Map k Integer -> Integer -> Maybe (k, Integer)
+test2 m i = let list = filter f (M.toList m) in listToMaybe list
+                    where f (_, x) | x > i     = True
+                                   | otherwise = False
 
 data Env n a r                    = EMPTY_ENV | E (M.Map n a) Integer r (Env n a r)
                                   deriving Show
@@ -55,10 +63,10 @@ getVar (E map _ _ e) n          = case M.lookup n map of
                                         Nothing -> getVar e n
                                         Just p  -> Just p
 
-setVar                          :: Ord n => Env n a r -> n -> a -> Env n a r
-setVar  EMPTY_ENV  n a          = EMPTY_ENV
-setVar (E map d r e) n a        = case M.lookup n map of
-                                        Nothing -> E map d r (setVar e n a)
+setVar                          :: Ord n => Env n a r -> (n, a) -> Env n a r
+setVar  EMPTY_ENV  (_,_)        = EMPTY_ENV
+setVar (E map d r e) (n,a)      = case M.lookup n map of
+                                        Nothing -> E map d r (setVar e (n,a))
                                         Just _  -> E (M.insert n a map) d r e
                                         
 getExtra                        :: Env n a r -> r

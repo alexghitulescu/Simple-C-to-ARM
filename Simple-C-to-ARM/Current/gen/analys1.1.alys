@@ -49,6 +49,8 @@ IFun "main"[](Extra: I1 (fromList [("@t0000000",4),("a",7),("b",2),("c",1)]) 12)
 }
 ]
 
+printIProg  "Test/srec.myc"
+
 int fib(int a)
 {
 	if(a < 2)
