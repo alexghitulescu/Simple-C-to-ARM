@@ -24,18 +24,18 @@ cleanSeqn (ISeqn x)             = let elem = cleanIStmt x
                                       in case nr of 0         -> E_STMT
                                                     1         -> index elem 0
                                                     otherwise -> ISeqn (toList $ cleanIStmt x)
-cleanSeqn (ISeqnE x)            = let elem = cleanIStmt x
+cleanSeqn (ISeqnE x e)          = let elem = cleanIStmt x
                                       nr   = Seq.length elem
                                       in case nr of 0         -> E_STMT
-                                                    otherwise -> ISeqnE (toList $ cleanIStmt x)
+                                                    otherwise -> ISeqnE (toList $ cleanIStmt x) e
 cleanSeqn x                     = x
 
 cleanIStmt                           :: [IStmt] -> Seq IStmt
 cleanIStmt []                        = empty
 cleanIStmt ((IIf v x y e):xs)        = (IIf v (cleanSeqn x) (cleanSeqn y) e) <| cleanIStmt xs
-cleanIStmt ((IWhile ls v x e):xs)    = (IWhile (toList $ cleanIStmt ls) v (cleanSeqn x) e) <| cleanIStmt xs
+cleanIStmt ((IWhile ls v x e e2):xs) = (IWhile (toList $ cleanIStmt ls) v (cleanSeqn x) e e2) <| cleanIStmt xs
 cleanIStmt ((ISeqn x):xs)            = cleanIStmt x >< cleanIStmt xs
-cleanIStmt ((ISeqnE x):xs)           = (ISeqnE (toList $ cleanIStmt x)) <| cleanIStmt xs
+cleanIStmt ((ISeqnE x e):xs)         = (ISeqnE (toList $ cleanIStmt x) e) <| cleanIStmt xs
 cleanIStmt (x:xs)                    = x <| cleanIStmt xs
 
 cleanIProg                      :: IProg -> IProg
@@ -58,10 +58,11 @@ ppIStmt                         :: IStmt -> Int -> IO ()
 ppIStmt (ISeqn  xs) i           = do putStrLn $ tabs i ++ "ISeqn ["
                                      ppList2 xs (i + 1)
                                      putStrLn $ tabs i ++ "]"
-ppIStmt (ISeqnE xs) i           = do putStrLn $ tabs i ++ "ISeqn ["
+ppIStmt (ISeqnE xs e) i         = do putStrLn $ tabs i ++ "ISeqnE (Extra1: " ++ show e ++ ") ["
                                      ppList2 xs (i + 1)
                                      putStrLn $ tabs i ++ "]"
-ppIStmt (IWhile es v p e) i     = do putStrLn $ tabs i ++ "IWhile (Extra: " ++ show e ++ ") ["
+ppIStmt (IWhile es v p e1 e2) i = do putStrLn $ tabs i ++ "IWhile (Extra1: " ++ show e1 ++ ")"
+                                     putStrLn $ tabs i ++ "       (Extra2: " ++ show e2 ++ ") ["
                                      ppList2 es (i + 1)
                                      putStrLn $ tabs i ++ "]"
                                      putStrLn $ tabs i ++ show v ++ " {"

@@ -47,5 +47,5 @@ type Name             =  String
 data Type             =  Int | Str | Bool | InvalidType
                          deriving (Show, Eq)
 
-data Op               =  Add | Sub | Mul | Div
+data Op               =  Add | Sub | Mul | Div | Mod
                          deriving (Show , Eq, Ord)

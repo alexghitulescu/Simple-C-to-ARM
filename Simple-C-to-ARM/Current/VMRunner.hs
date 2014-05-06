@@ -1,13 +1,12 @@
 
 module VMRunner (
-     execM,
      execPrint
 ) where
 
 import Prelude hiding (EQ, LT, GT, compare)
 import Data.Array.IArray
 import Data.Foldable (toList)
-import Data.List (intercalate)
+import Data.List
 import qualified Data.Sequence as Sq
 import qualified Data.Map as M
 import AST
@@ -17,12 +16,18 @@ import ASTCompiler
 
 stackSize = 2000
 tempReg = "scratch"
-end = 1000000
+end = 10000000
+toI = toInteger
+debug = False
 
 execM                   :: Code -> IO State
-execM c                 = do result <- runState (start c) (elemIndex 0 (LABEL (N "main")) c, 0, toInteger(length c) + 1, -1, M.empty, stack, NONE', Sq.empty)
-                             return $ fst result
-                                                                        where stack = array (0, stackSize) [(i, 99999) | i <- [0..stackSize]]
+execM c                 = do let index = elemIndex (LABEL (N "main")) c
+                             case index of 
+                                Nothing -> do putStrLn "Could not find function \"main\""
+                                              return (0, 0, 0, 0, M.empty, array (0, 0) [], NONE', Sq.empty)
+                                Just i  -> do result <- runState (start c) (toI i, 0, toI(length c) + 1, -1, M.empty, stack, NONE', Sq.empty)
+                                              return $ fst result
+                                                                        where stack = array (0, stackSize) [(i, 999) | i <- [0..stackSize]]
 
 execPrint                       :: Code -> IO ()
 execPrint c                     = do putStr "Started execution\n"
@@ -31,7 +36,11 @@ execPrint c                     = do putStr "Started execution\n"
                                      putStr ("(pc: " ++ show(pc) ++ ", sb: " ++ show(sb) ++ ", lr: " ++ show(lr))
                                      putStr (", sp: " ++ show(sp) ++ ", mem: " ++ show(m) ++ ", stack: " ++ show(stack))
                                      putStr (", flag: " ++ show(cflag) ++ "\n stdout:\n" ++ intercalate "" (toList stdout))
-                                                
+
+printDebug                      :: String -> IO ()
+printDebug s                    = if debug then putStrLn s
+                                           else return ()
+                                     
 -- State Monad 
 -- ===========
 
@@ -60,12 +69,12 @@ nothing       :: ST ()
 nothing       =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 pop           :: ST Integer
-pop           =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp < 0 then do putStr ("pop; stack underflow: " ++ show sp ++ "\n")
+pop           =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp < 0 then do putStrLn ("pop; stack underflow: " ++ show sp)
                                                                                 return (s ! 0, (end, sb, lr, 0, m, s, cflag, stdout))
                                                                         else return (s ! sp, (pc, sb, lr, sp - 1, m, s, cflag, stdout)))
 
 push          :: Integer -> ST ()
-push i        =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp< -1 then do putStr ("push; stack underflow: " ++ show sp ++ "\n")
+push i        =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp< -1 then do putStrLn ("push; stack underflow: " ++ show sp)
                                                                                 return ((), (end, sb, lr, sp + 1, m, s, cflag, stdout))
                                                                         else return ((), (pc, sb, lr, sp + 1, m, s // [(sp + 1, i)], cflag, stdout)))
 
@@ -73,10 +82,17 @@ put           :: (Name, Integer) -> ST ()
 put (n, i)    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, M.insert n i m, s, cflag, stdout)))
 
 retrieve      :: Code -> ST Inst
-retrieve c    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (if pc < toInteger(length c) then c !! fromInteger(pc) else HALT, (pc, sb, lr, sp, m, s, cflag, stdout)))
+retrieve c    =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if pc < 0 then do putStrLn ("negative program counter: " ++ show pc)
+                                                                                return (HALT, (pc, sb, lr, sp, m, s, cflag, stdout))
+                                                                        else return (if pc < toI(length c) then c !! fromInteger(pc) 
+                                                                                                           else HALT, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 jump          :: Code -> Label -> ST ()
-jump c l      =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (elemIndex 0 (LABEL l) c, sb, lr, sp, m, s, cflag, stdout)))
+jump c l      =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do let index = elemIndex (LABEL l) c
+                                                                 case index of 
+                                                                        Nothing -> do putStrLn ("could not find label: " ++ show l)
+                                                                                      return ((), (end, sb, lr, sp, m, s, cflag, stdout))
+                                                                        Just i  -> return ((), (toI i, sb, lr, sp, m, s, cflag, stdout)))
 
 jumpI          :: Code -> Integer -> ST ()
 jumpI c i      =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (i, sb, lr, sp, m, s, cflag, stdout)))
@@ -124,19 +140,21 @@ setRegVal (R n) i =  put (n, i)
 setRegVal (G n) i =  put (n, i)
 
 load            :: Integer -> ST Integer
-load i          =  if i < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do putStr ("loading off stack: " ++ show i ++ "\n")
-                                                                                 return (0, (end, sb, lr, sp, m, s, cflag, stdout)))
-                            else S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (s ! i, (pc, sb, lr, sp, m, s, cflag, stdout)))
+load pos        =  if pos < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do putStr ("loading off stack: " ++ show pos ++ "\n")
+                                                                                   return (0, (end, sb, lr, sp, m, s, cflag, stdout)))
+                              else S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (s ! pos, (pc, sb, lr, sp, m, s, cflag, stdout)))
 --load i          =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return (s ! i, (pc, sb, lr, sp, m, s, cflag, stdout)))
 
 store           :: Integer -> Integer -> ST ()
-store pos i     =  if i < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do putStr ("storing off stack: " ++ show i ++ "\n")
-                                                                                 return ((), (end, sb, lr, sp, m, s, cflag, stdout)))
-                            else S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag, stdout)))
+store pos i     =  if pos < 0 then S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> do putStr ("storing off stack: " ++ show pos ++ "\n")
+                                                                                   return ((), (end, sb, lr, sp, m, s, cflag, stdout)))
+                              else S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag, stdout)))
 --store pos i     =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s // [(pos, i)], cflag, stdout)))
 
 start           :: Code -> ST State
 start c         = do addAddress (filter (isAddress) c)
+                     let f (n,i) = put (n,i)
+                     mapM_ put [("r4",-991),("r5",-991),("r6",-991),("r7",-991),("r8",-991),("r10",-991),("r11",-991)]
                      execCode c
                      
 printToStd        :: String -> ST ()
@@ -145,10 +163,10 @@ printToStd string = S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc
 execCode        :: Code -> ST State
 execCode c      = do inst <- retrieve c
                      next
-                     {-m <- mem
+                     m <- mem
                      (_, _, _, sp, _, s, _, _) <- state
                      let stack = take ((fromInteger sp) + 1) (assocs s)
-                     liftIO $ putStr (show inst ++ "\t\t | " ++ show m ++ "|" ++ show stack ++ "\n")-}
+                     liftIO $ printDebug ("\t\t\t | " {-++ show m ++ "|"-} ++ show stack ++ "\n>" ++ show inst)
                      case inst of (PUSH i)                -> do push i
                                                                 execCode c
                                                                 
@@ -180,10 +198,15 @@ execCode c      = do inst <- retrieve c
                                                                 setRegVal rf (val1 * val2)
                                                                 execCode c
                                                                 
-                                  (DIV rf r1 imd)         -> do val1 <- getRegVal r1
-                                                                val2 <- getImdVal imd
+                                  (DIV rf r1 r2)          -> do val1 <- getRegVal r1
+                                                                val2 <- getRegVal r2
                                                                 setRegVal rf (val1 `div` val2)
                                                                 execCode c
+                                   
+                                  (MOD rf r1 r2)          -> do val1 <- getRegVal r1
+                                                                val2 <- getRegVal r2
+                                                                setRegVal rf (val1 `mod` val2)
+                                                                execCode c 
                                    
                                   (MOV r imd)             -> do val <- getImdVal imd
                                                                 setRegVal r val
@@ -226,10 +249,12 @@ execCode c      = do inst <- retrieve c
                                                                 
                                   (CMP r1 imd)            -> do r1val <- getRegVal r1
                                                                 imdval <- getImdVal imd
+                                                                liftIO $ printDebug (":::::" ++ show r1val ++ " vs " ++ show imdval ++ ":::::")
                                                                 setCflag (compare r1val imdval)
                                                                 execCode c
-                                  (other)                 -> do put ("other: " ++ show other, 0)
-                                                                setRegVal PC 100000
+                                  (DEBUG s)               -> execCode c
+                                  (other)                 -> do liftIO $ putStrLn ("other: " ++ show other)
+                                                                setRegVal PC end
                                                                 execCode c
 
 
@@ -282,9 +307,6 @@ compareCF LT' LT         = True
 compareCF LT' LE         = True
 compareCF LT' NE         = True
 compareCF LT' _          = False
-          
-find          :: Eq a => a -> [(a,b)] -> b
-find n (x:xs) = if n == (fst x) then (snd x) else find n xs 
 
 remP           :: Eq a => a -> [(a,b)] -> [(a,b)]
 remP _ [    ]  = []
@@ -295,10 +317,6 @@ compNr Add m n  = m + n
 compNr Sub m n  = n - m
 compNr Mul m n  = m * n
 compNr Div m n  = m `quot` n
-
-elemIndex :: Eq a => Integer -> a -> [a] -> Integer
-elemIndex n a [] = 1000000
-elemIndex n a (x:xs) = if x == a then n else elemIndex (n + 1) a xs
 
 isAddress               :: Inst -> Bool
 isAddress (ADDRESS _)   = True

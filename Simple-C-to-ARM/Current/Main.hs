@@ -41,12 +41,13 @@ runInVM fileName  = do code <- getCode fileName
 getCode           :: String -> IO Code
 getCode fileName  = do prog <- parseFile fileName
                        prog' <- compE prog
-                       code <- compI $ cleanIProg prog'
+                       let prog'' = cleanIProg prog'
+                       code <- compI $ analyse prog''
                        return code
 
 printInst           :: String -> IO()
 printInst fileName  = do code <- getCode fileName
-                         print code
+                         mapM_ (putStrLn.show) code
 
 printIProg           :: String -> IO()
 printIProg fileName  = do prog <- parseFile fileName
@@ -54,7 +55,7 @@ printIProg fileName  = do prog <- parseFile fileName
                           print prog'
                           putStr "\n--------------------------\n"
                           let prog'' = cleanIProg prog'
-                          print $ prog''
+                          ppIProg $ prog''
                           putStr "\n--------------------------\n"
                           ppIProg $ analyse prog''
                           

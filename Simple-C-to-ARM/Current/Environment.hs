@@ -8,6 +8,7 @@ module Environment (
     setExtra,
     copyExtra,
     getVarCLevel,
+    addLevelCopy,
     addLevel,
     removeLevel,
     emptyTop,
@@ -19,25 +20,6 @@ module Environment (
 import AST
 import VMInst
 import qualified Data.Map as M
-import Data.List
-import Data.Maybe
-
-test' :: Char
-test' = test (M.fromList [('a', 15), ('b', 14), ('c', 13)]) 15
-
---minimum' :: (Ord a) => M.Map k a -> k
-test :: M.Map k Integer -> Integer -> k
-test m i = let minimum' = fst $ minimumBy comp (M.toList m)
-                    where
-                        comp (_, x) (_, y) | x > i     = Prelude.LT
-                                           | y > i     = Prelude.GT
-                                           | otherwise = compare x y
-         in minimum'
-         
-test2 :: M.Map k Integer -> Integer -> Maybe (k, Integer)
-test2 m i = let list = filter f (M.toList m) in listToMaybe list
-                    where f (_, x) | x > i     = True
-                                   | otherwise = False
 
 data Env n a r                    = EMPTY_ENV | E (M.Map n a) Integer r (Env n a r)
                                   deriving Show
@@ -90,6 +72,9 @@ getVarCLevel (E map _ _ e) n    = M.lookup n map
                                         
 addLevel                        :: Env n a r -> r -> Env n a r
 addLevel e r                    = E M.empty 0 r e
+
+addLevelCopy                    :: Env n a r -> Env n a r
+addLevelCopy (E map d r e)      = E M.empty 0 r (E map d r e)
 
 removeLevel                     :: Env n a r -> Env n a r
 --removeLevel  EMPTY_ENV          = EMPTY_ENV

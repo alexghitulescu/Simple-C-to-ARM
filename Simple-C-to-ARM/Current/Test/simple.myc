@@ -2,23 +2,21 @@ int foo(int x)
 {
 	int a;
 	print (x);
-	a = x - 2;
+	a = x / 2;
 	print (a);
 }
 
 int main () 
 {
-	if(6 > 0)
-	{
-		int a;
-		foo(100 - 50);
-	}
-	while(a)
-	{
-		int g;
-	}
-	a = 10;
+	int g;
 	g = 10;
-	print (a);
-	print (g);
+	if(g > 0)
+	{
+		foo(100 - 50);
+		g = 100;
+	}
+	int i;
+	for(i = 0; i < 2; i = i + 1) {
+		print (i);
+	}
 }

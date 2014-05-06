@@ -14,14 +14,14 @@ import IAST
 import Helper
 import Extra
 
-transform                       :: Expr -> (Sq.Seq IStmt, Value)
-transform e                     = (seq, val)
-                                        where (val, (_, _, _, seq)) = runState' e
+transform                       :: Expr -> Int -> (Sq.Seq IStmt, Value, Int)
+transform e n                   = (seq, val, n1)
+                                        where (val, (n1, _, _, seq)) = runState' e n
 
 getEndState                     :: Expr -> State
-getEndState e                   = snd $ runState' e
+getEndState e                   = snd $ runState' e 0
                                         
-runState' e = runState (process e) (0, M.empty, M.empty, Sq.empty)
+runState' e n = runState (process e) (n, M.empty, M.empty, Sq.empty)
 
 -- State Monad 
 -- ===========
@@ -29,7 +29,7 @@ runState' e = runState (process e) (0, M.empty, M.empty, Sq.empty)
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Integer, M.Map Tree Value, M.Map Value Tree, Sq.Seq IStmt)
+type State    = (Int, M.Map Tree Value, M.Map Value Tree, Sq.Seq IStmt)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 

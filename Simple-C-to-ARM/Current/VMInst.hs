@@ -35,7 +35,8 @@ data Inst             =  ADDRESS Name
                       |  ADD Reg Reg Imd
                       |  SUB Reg Reg Imd
                       |  MUL Reg Reg Imd
-                      |  DIV Reg Reg Imd
+                      |  DIV Reg Reg Reg
+                      |  MOD Reg Reg Reg
                       |  MOV Reg Imd
                       |  CMP Reg Imd
                       |  BX Cond Reg
@@ -47,6 +48,7 @@ data Inst             =  ADDRESS Name
                       |  LDR Reg Imd
                       |  LDRV Reg Integer
                       |  STR Reg Imd
+                      |  DEBUG String
                          deriving (Show, Eq)
 
 data Reg              = SB | PC | LR | SP | TEMP | R Name | G Name deriving (Show, Eq, Ord)

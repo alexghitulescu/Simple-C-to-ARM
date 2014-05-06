@@ -23,9 +23,9 @@ data IProg            =  IGlobalVar Name
 data IStmt            =  ILocalVar Name Extra 
                       |  IAssign Name Value Extra
                       |  IIf Value IStmt IStmt Extra
-                      |  IWhile [IStmt] Value IStmt Extra
+                      |  IWhile [IStmt] Value IStmt Extra Extra
                       |  ISeqn [IStmt]
-                      |  ISeqnE [IStmt]
+                      |  ISeqnE [IStmt] Extra
                       |  IPrint Value Extra
                       |  IReturn Value Extra
                       |  IApply Name [Value] Name Extra
@@ -42,4 +42,4 @@ data Value            =  IVal Integer
                          
 data Extra            =  Empt 
                       |  I1 (Map Name Int) Int
-                         deriving (Show)
+                         deriving (Show, Eq)

@@ -30,7 +30,7 @@ def = javaStyle{ commentStart = "/*"
               , opStart = oneOf "~&=:"
               , opLetter = oneOf "~&=:"
               , reservedNames = ["true", "false", "print", "return"] ++ types ++ conditional
-              , reservedOpNames = ["~", "&", "=", "+=", "+", "-", "*"] ++ comparators 
+              , reservedOpNames = ["~", "&", "=", "+=", "+", "-", "*", "%"] ++ comparators 
               , caseSensitive = True
               }
 
@@ -49,17 +49,17 @@ m_semiSep stmt  = sepEndBy1 stmt (optional m_semi)
 
 exprParser :: Parser Expr
 exprParser = buildExpressionParser table term <?> "expression"
-table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
-        , [Infix (m_reservedOp "&" >> return (Duo And)) AssocLeft]
-        ,-} [Infix ( do {pos <- getPosition  ; m_reservedOp "*" ; return (App pos Mul)}) AssocLeft]
-        , [Infix (do {pos <- getPosition ; m_reservedOp "+" ; return (App pos Add)}) AssocLeft]
-        , [Infix (do {pos <- getPosition ; m_reservedOp "-" ; return (App pos Sub)}) AssocLeft]
-        , [Infix (do {pos <- getPosition ; m_reservedOp "==" ; return (Compare pos EQ)}) AssocNone]
-        , [Infix (do {pos <- getPosition ; m_reservedOp "!=" ; return (Compare pos NE)}) AssocNone]
-        , [Infix (do {pos <- getPosition ; m_reservedOp "<"  ; return (Compare pos LT)}) AssocNone]
-        , [Infix (do {pos <- getPosition ; m_reservedOp "<=" ; return (Compare pos LE)}) AssocNone]
-        , [Infix (do {pos <- getPosition ; m_reservedOp ">"  ; return (Compare pos GT)}) AssocNone]
-        , [Infix (do {pos <- getPosition ; m_reservedOp ">=" ; return (Compare pos GE)}) AssocNone]
+table = [ [Infix (do {pos <- getPosition ; m_reservedOp "*" ; return (App pos Mul)}) AssocLeft
+        ,  Infix (do {pos <- getPosition ; m_reservedOp "/" ; return (App pos Div)}) AssocLeft
+        ,  Infix (do {pos <- getPosition ; m_reservedOp "%" ; return (App pos Mod)}) AssocLeft]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "+" ; return (App pos Add)}) AssocLeft
+        ,  Infix (do {pos <- getPosition ; m_reservedOp "-" ; return (App pos Sub)}) AssocLeft]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "==" ; return (Compare pos EQ)}) AssocNone
+        ,  Infix (do {pos <- getPosition ; m_reservedOp "!=" ; return (Compare pos NE)}) AssocNone
+        ,  Infix (do {pos <- getPosition ; m_reservedOp "<"  ; return (Compare pos LT)}) AssocNone
+        ,  Infix (do {pos <- getPosition ; m_reservedOp "<=" ; return (Compare pos LE)}) AssocNone
+        ,  Infix (do {pos <- getPosition ; m_reservedOp ">"  ; return (Compare pos GT)}) AssocNone
+        ,  Infix (do {pos <- getPosition ; m_reservedOp ">=" ; return (Compare pos GE)}) AssocNone]
         ]
 term = m_parens exprParser
        <|> do { pos <- getPosition
@@ -104,7 +104,6 @@ funcParserExpr pos      = do { v <- m_identifier
                      
 forParser    :: Parser (String, Stmt, Expr, Stmt)
 forParser    =  do { pos <- getPosition
-                   ; m_reserved "int"
                    ; d <- m_identifier
                    ; a <- asgnParser d pos
                    ; m_semi
@@ -113,13 +112,17 @@ forParser    =  do { pos <- getPosition
                    ; i <- stmtParser
                    ; return (d, a, e, i)
                    }
-                     
+                   
 stmtParser :: Parser Stmt
 stmtParser = fmap Seqn (m_semiSep stmt1)
     where
-      stmt1 =     do { m_reserved "int"
+      stmt1 =     do { pos <- getPosition
+                     ; m_reserved "int"
                      ; v <- m_identifier
-                     ; return (LocalVar v)
+                     ; do { asgn <- asgnParser v pos
+                          ; return (Seqn [LocalVar v, asgn])
+                          }
+                       <|> return (LocalVar v)
                      }
               <|> do { pos <- getPosition
                      ; v <- m_identifier

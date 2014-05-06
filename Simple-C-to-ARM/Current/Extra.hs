@@ -4,9 +4,11 @@ module Extra (
     addValue2,
     addValues,
     incNumber,
+    addValues2,
     copyNumber,
     mergeExtraL,
     mergeExtraR,
+    mergeExtraM,
     getVarNumber
 ) where
 
@@ -36,6 +38,10 @@ addValues                               :: Extra -> [Value] -> Extra
 addValues e []                          = e
 addValues e (v:vs)                      = let e' = e `addValue` v in addValues e' vs
 
+addValues2                              :: Extra -> Extra -> [Value] -> Extra
+addValues2 e _  []                      = e
+addValues2 e ep (v:vs)                  = let e' = addValue2 e ep v in addValues e' vs
+
 addName                                 :: Extra -> Name -> Int -> Extra
 addName Empt n nr                       = addName (emptyExtra 0) n nr
 addName (I1 map i) n nr                 = I1 (insert n nr map) i
@@ -63,3 +69,9 @@ mergeExtraR                             :: Extra -> Extra -> Extra
 mergeExtraR Empt e                      = e
 mergeExtraR e Empt                      = e
 mergeExtraR (I1 m1 _) (I1 m2 i)         = I1 (m1 `union` m2) i
+
+mergeExtraM                             :: Extra -> Extra -> Extra
+mergeExtraM Empt e                      = e
+mergeExtraM e Empt                      = e
+mergeExtraM (I1 m1 l) (I1 m2 r)         = I1 (unionWith f m1 m2) (if l > r then l else r)
+                                                        where f i j = if i > j then i else j

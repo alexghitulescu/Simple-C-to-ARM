@@ -1,0 +1,25 @@
+int prime(int x)
+{
+	int p = 1;
+	int i;
+	for(i = 2; i < x / 2; i = i + 1)
+	{
+		if(x % i == 0)
+		{
+			p = 0;
+		}
+	}
+	return p;
+}
+
+int main()
+{
+	int i;
+	for(i = 0; i < 1000; i = i + 1)
+	{
+		if(prime(i))
+		{
+			print(i);
+		}
+	}
+}
