@@ -18,7 +18,7 @@ stackSize = 2000
 tempReg = "scratch"
 end = 10000000
 toI = toInteger
-debug = False
+debug = True
 
 execM                   :: Code -> IO State
 execM c                 = do let index = elemIndex (LABEL (N "main")) c

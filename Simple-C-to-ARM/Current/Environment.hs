@@ -14,7 +14,8 @@ module Environment (
     emptyTop,
     displacement,
     setDisplacement,
-    addDisplacement
+    addDisplacement,
+    totalDisplacement
 ) where
 
 import AST
@@ -28,6 +29,10 @@ emptyTop r                      = E M.empty 0 r EMPTY_ENV
 
 displacement                    :: Env n a r -> Integer
 displacement (E _ d _ _)        = d
+
+totalDisplacement               :: Env n a r -> Integer
+totalDisplacement  EMPTY_ENV    = 0
+totalDisplacement (E _ d _ e)   = d + totalDisplacement e
 
 setDisplacement                 :: Env n a r -> Integer -> Env n a r
 setDisplacement (E map _ r e) i = E map i r e

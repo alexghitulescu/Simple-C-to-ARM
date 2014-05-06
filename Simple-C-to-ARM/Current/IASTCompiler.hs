@@ -18,6 +18,8 @@ import Helper
 import Environment
 import Extra
 
+debug = False
+
 comp                            :: IProg -> Code 
 comp p                          = case err of 
                                         [] -> toList code
@@ -71,7 +73,7 @@ fresh                   :: ST Label
 fresh                   =  S (\(n, env, e, c, regEnv) -> (V n, (n+1, env, e, c, regEnv)))
 
 emit                    :: Inst -> ST ()
-emit (DEBUG _)          = S (\(n, env, e, c, regEnv) -> ((), (n, env, e, c, regEnv))) --uncomment to ignore DEBUG instructions
+emit (DEBUG s)          = S (\(n, env, e, c, regEnv) -> ((), (n, env, e, if debug then c |> (DEBUG s) else c, regEnv)))
 emit i                  = S (\(n, env, e, c, regEnv) -> ((), (n, env, e, c |> i, regEnv)))
 
 emitCode                :: Code -> ST ()
@@ -109,6 +111,9 @@ setEnvDisplacement i    =  S (\(n, env, e, c, regEnv) -> ((), (n, env `setDispla
 
 getEnvDisplacement      :: ST Integer
 getEnvDisplacement      =  S (\(n, env, e, c, regEnv) -> (displacement env, (n, env, e, c, regEnv)))
+
+getTotalDisplacement    :: ST Integer
+getTotalDisplacement    =  S (\(n, env, e, c, regEnv) -> (totalDisplacement env, (n, env, e, c, regEnv)))
 
 addEnvDisplacement      :: Integer -> ST ()
 addEnvDisplacement i    =  S (\(n, env, e, c, regEnv) -> ((), (n, env `addDisplacement` i, e, c, regEnv)))
@@ -242,6 +247,12 @@ removeFuncReg r n       =  do env <- getRegEnv
                               let Inf2 (Rs fReg a) ns b = getExtra env
                               let fReg' = delete r fReg
                               setRegExtra (Inf2 (Rs fReg' a) (n:ns) b)
+
+correctStackAlignment   :: ST ()
+correctStackAlignment   = do dis <- getTotalDisplacement
+                             if dis `mod` 2 /= 0 then do addEnvDisplacement 1
+                                                         emit (ADD SP SP (VAL 1))
+                                                 else return ()
                               
 removeGeneralReg        :: Reg -> ST ()
 removeGeneralReg r      =  do env <- getRegEnv 
@@ -290,6 +301,7 @@ compProg (IFun n ns st e)       = do emit (DEBUG $ "IFun" ++ show n)
                                      setEnvDisplacement 2
                                      --prepare the environment for function arguments
                                      addFuncArgs ns 0
+                                     --saveFuncRegVars
                                      --save SB, LR and execute the code and increment SP by the number of args.
                                      compStmt st
                                      restoreRegisters
@@ -302,7 +314,7 @@ compProg (IFun n ns st e)       = do emit (DEBUG $ "IFun" ++ show n)
                                      -- restore SP to before arguments
                                      remEnvLevel
                                      remRegLevel
-                                     emit (DEBUG "---------------")
+                                     emit (DEBUG $ "---------------" ++ "IFun" ++ show n)
 compProg (IPSeq xs)             = mapM_ compProg xs
                 
                 
@@ -310,46 +322,50 @@ compStmt                        :: IStmt -> ST ()
 compStmt (ILocalVar n e)        = do emit (DEBUG $ "ILocalVar" ++ show n)
                                      info <- newInfo n
                                      addEnvVar n info
-                                     emit (DEBUG "---------------")
+                                     emit (DEBUG $ "---------------" ++ "ILocalVar" ++ show n)
 compStmt (IAssign n val e)      = do emit (DEBUG $ "IAssign" ++ show n ++ " " ++ show val)
                                      r1 <- compName n e
                                      compVal' val r1
-                                     emit (DEBUG "---------------")
+                                     emit (DEBUG $ "---------------" ++ "IAssign" ++ show n ++ " " ++ show val)
 compStmt (IPrint val e)         = do emit (DEBUG $ show (IPrint val Empt))
                                      saveFuncRegVars
                                      compVal' val (R "r1")
                                      emit       (PRINT)
-                                     emit (DEBUG "---------------")
+                                     emit (DEBUG $ "---------------" ++ show (IPrint val Empt))
 compStmt (E_STMT)               = return ()
 compStmt (ISeqn  xs)            = mapM_ compStmt xs
-compStmt (ISeqnE xs e)          = do emit (DEBUG $ show (ISeqnE [] Empt))
+compStmt (ISeqnE xs e)          = do mark <- fresh
+                                     emit (DEBUG $ show (ISeqnE [] Empt) ++ show mark)
                                      dis <- getEnvDisplacement
                                      addEnvLevel
                                      addRegLevel2
                                      setEnvDisplacement dis
                                      mapM_ compStmt xs
-                                     dis2 <- getEnvDisplacement
                                      revertRegChanges
                                      adjustRegs e
+                                     dis2 <- getEnvDisplacement
                                      remEnvLevel
                                      emit (SUB SP SP (VAL (dis2 - dis)))
-                                     emit (DEBUG "---------------")
+                                     emit (DEBUG $ "---------------" ++ show (ISeqnE [] Empt) ++ show mark)
 compStmt (IWhile es v p e1 e2)  = do emit (DEBUG $ "IWhile " ++ show v)
                                      lb <- fresh
                                      lb' <- fresh
                                      mapM_ compStmt es 
                                      jumpz v lb' e1
+                                     dis <- getEnvDisplacement
                                      emit (LABEL lb)
                                      compStmt p
                                      jumpz v lb' e2
+                                     dis2 <- getEnvDisplacement
+                                     emit (SUB SP SP (VAL (dis2 - dis)))
                                      emitCode   [B NONE lb, LABEL lb']
-                                     emit (DEBUG "---------------")
+                                     emit (DEBUG $ "---------------" ++ "IWhile " ++ show v)
 compStmt (IIf v p1 E_STMT e)    = do emit (DEBUG $ "IIf " ++ show v)
                                      lb <- fresh
                                      jumpz v lb e
                                      compStmt p1
                                      emit (LABEL lb)
-                                     emit (DEBUG "---------------")
+                                     emit (DEBUG $ "---------------" ++ "IIf " ++ show v)
 compStmt (IIf v p1 p2 e)        = do emit (DEBUG $ "IIf " ++ show v)
                                      lb <- fresh
                                      lb' <- fresh
@@ -358,7 +374,7 @@ compStmt (IIf v p1 p2 e)        = do emit (DEBUG $ "IIf " ++ show v)
                                      emitCode [B NONE lb', LABEL lb] 
                                      compStmt p2 
                                      emit (LABEL lb')
-                                     emit (DEBUG "---------------")
+                                     emit (DEBUG $ "---------------" ++ "IIf " ++ show v)
 compStmt (IReturn v e)          = do emit (DEBUG $ show (IReturn v Empt))
                                      compVal' v (R "r0")
                                      emit (DEBUG "---------------")
@@ -366,26 +382,33 @@ compStmt (IApply n vals res e)  = do emit (DEBUG $ "IApply " ++ show n)
                                      addTempVar res e -- result
                                      saveFuncRegVars
                                      prepareFunctionCall vals 0
+                                     correctStackAlignment
                                      emit (BL NONE (N n))
                                      emit (DEBUG "---------------")
-compStmt (IApp n Div v1 v2 e)   = do addTempVar n e
+compStmt (IApp n Div v1 v2 e)   = do emit (DEBUG $ show (IApp n Div v1 v2 Empt))
+                                     addTempVar n e
                                      saveFuncRegVars
                                      let r0 = (R "r0")
                                      let r1 = (R "r1")
                                      compVal' v1 r0
                                      compVal' v2 r1
+                                     correctStackAlignment
                                      emit (DIV r0 r0 r1)
                                      rd <- compName n e
                                      emit (MOV rd (P r0 0))
-compStmt (IApp n Mod v1 v2 e)   = do addTempVar n e
+                                     emit (DEBUG "---------------")
+compStmt (IApp n Mod v1 v2 e)   = do emit (DEBUG $ show (IApp n Mod v1 v2 Empt))
+                                     addTempVar n e
                                      saveFuncRegVars
                                      let r0 = (R "r0")
                                      let r1 = (R "r1")
                                      compVal' v1 r0
                                      compVal' v2 r1
+                                     correctStackAlignment
                                      emit (MOD r1 r0 r1)
                                      rd <- compName n e
                                      emit (MOV rd (P r1 0))
+                                     emit (DEBUG "---------------")
 compStmt (IApp n op v1 v2 e)    = do emit (DEBUG $ show (IApp n op v1 v2 Empt))
                                      addTempVar n e
                                      rd <- compName n e

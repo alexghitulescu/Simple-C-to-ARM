@@ -1,22 +1,21 @@
 int foo(int x)
 {
-	int a;
-	print (x);
-	a = x / 2;
-	print (a);
+	//int g;
+	//g = 10;
+	int i;
+	for(i = 0; i < 2; i = i + 1) {
+		//print (i);
+		if(x % 3 > 0)
+		{
+			int a;
+			//print (x);
+			a = x / 2;
+			print (a);
+		}
+	}
 }
 
 int main () 
 {
-	int g;
-	g = 10;
-	if(g > 0)
-	{
-		foo(100 - 50);
-		g = 100;
-	}
-	int i;
-	for(i = 0; i < 2; i = i + 1) {
-		print (i);
-	}
+	foo(100 - 50);
 }
