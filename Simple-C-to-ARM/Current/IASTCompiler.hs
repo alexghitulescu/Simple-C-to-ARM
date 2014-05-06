@@ -383,9 +383,9 @@ compStmt (IApp n Mod v1 v2 e)   = do addTempVar n e
                                      let r1 = (R "r1")
                                      compVal' v1 r0
                                      compVal' v2 r1
-                                     emit (MOD r0 r0 r1)
+                                     emit (MOD r1 r0 r1)
                                      rd <- compName n e
-                                     emit (MOV rd (P r0 0))
+                                     emit (MOV rd (P r1 0))
 compStmt (IApp n op v1 v2 e)    = do emit (DEBUG $ show (IApp n op v1 v2 Empt))
                                      addTempVar n e
                                      rd <- compName n e

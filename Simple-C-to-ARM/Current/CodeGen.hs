@@ -133,6 +133,10 @@ instToARM (SUB rf r1 imd)   =    add6 "\t sub " (getRegVal rf) ", " (getRegVal r
 
 instToARM (MUL rf r1 imd)   =    add6 "\t mul " (getRegVal rf) ", " (getRegVal r1) ", " (getImdVal imd 1)  
 
+instToARM (DIV rf r1 imd)   =    add1 "\t bl __aeabi_idiv"
+
+instToARM (MOD rf r1 imd)   =    add1 "\t bl __aeabi_idivmod"
+
 instToARM (CMP r1 imd)      =    add4 "\t cmp " (getRegVal r1) ", " (getImdVal imd 1)
 
 instToARM (MOV r (VAL i))   =    if(abs i <= 256) then add4 "\t mov " (getRegVal r) ", #" (show i)
@@ -188,10 +192,8 @@ toScreen (x:xs) = do  putStr x
 addMain       :: [String] -> [String]
 addMain x     = [".balign 4" ++ endl, "nr: .asciz \"%d \\n\"" ++ endl, ".balign 4" ++ endl,
                       ".text" ++ endl, ".global printf" ++ endl, 
-                      ".balign 4" ++ endl, ".global main" ++ endl, {-"main:" ++ endl, 
-                      "\t push {lr} " ++ endl,-} endl] 
-                      ++ x ++ [endl , {-"\t pop {lr} " ++ endl,
-                      "\t bx lr" ++ endl,-} endl, "addr_of_nr : .word nr" ++ endl, endl]
+                      ".balign 4" ++ endl, ".global main" ++ endl, ".global __aeabi_idivmod" ++ endl,
+                      ".global __aeabi_idiv", endl] ++ x ++ [endl , endl, "addr_of_nr : .word nr" ++ endl, endl]
 
 condToARM       :: Cond -> String
 condToARM NONE  = ""
