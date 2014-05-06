@@ -18,7 +18,7 @@ stackSize = 2000
 tempReg = "scratch"
 end = 10000000
 toI = toInteger
-debug = True
+debug = False
 
 execM                   :: Code -> IO State
 execM c                 = do let index = elemIndex (LABEL (N "main")) c
@@ -35,7 +35,7 @@ execPrint c                     = do putStr "Started execution\n"
                                      let stack = take ((fromInteger sp) + 1) (assocs s)
                                      putStr ("(pc: " ++ show(pc) ++ ", sb: " ++ show(sb) ++ ", lr: " ++ show(lr))
                                      putStr (", sp: " ++ show(sp) ++ ", mem: " ++ show(m) ++ ", stack: " ++ show(stack))
-                                     putStr (", flag: " ++ show(cflag) ++ "\n stdout:\n" ++ intercalate "" (toList stdout))
+                                     putStr (", flag: " ++ show(cflag) {-++ "\n stdout:\n" ++ intercalate "" (toList stdout)-} ++ "\n")
 
 printDebug                      :: String -> IO ()
 printDebug s                    = if debug then putStrLn s

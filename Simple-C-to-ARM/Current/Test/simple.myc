@@ -1,4 +1,4 @@
-int foo(int x)
+/*int foo(int x)
 {
 	//int g;
 	//g = 10;
@@ -13,9 +13,27 @@ int foo(int x)
 			print (a);
 		}
 	}
-}
+}*/
 
 int main () 
 {
-	foo(100 - 50);
+	//foo(100 - 50);
+	int a;
+	while(a < 10) 
+	{
+		a = a + 1;
+		while(a < 11)
+		{
+			a = a + 1;
+			while(a < 12)
+			{
+				a = a + 1;
+				while(a < 13)
+				{
+					a = a + 1;
+				}
+			}
+		}
+	}
+	print (a);
 }

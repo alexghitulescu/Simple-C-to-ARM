@@ -120,9 +120,9 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
                      ; m_reserved "int"
                      ; v <- m_identifier
                      ; do { asgn <- asgnParser v pos
-                          ; return (Seqn [LocalVar v, asgn])
+                          ; return (Seqn [LocalVar v pos, asgn])
                           }
-                       <|> return (LocalVar v)
+                       <|> return (LocalVar v pos)
                      }
               <|> do { pos <- getPosition
                      ; v <- m_identifier
@@ -145,7 +145,7 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
               <|> do { m_reserved "for"
                      ; (d, a, e, i) <- m_parens forParser
                      ; p <- m_braces stmtParser
-                     ; return (SeqnE [LocalVar d, a, While e (SeqnE [p, i])])
+                     ; return (Seqn [a, While e (SeqnE [p, i])])
                      }
               <|> do { m_reserved "print"
                      ; b <- m_parens exprParser
@@ -173,11 +173,12 @@ mainParser = m_whiteSpace >> progParser <* eof
                      ; m_semi
                      ; return (GlobalVar v pos)
                      }
-      func =      do { m_reserved "int"
+      func =      do { pos <- getPosition
+                     ; m_reserved "int"
                      ; v <- m_identifier
                      ; e <- m_parens ( m_commaSep args )
                      ; p <- m_braces stmtParser
-                     ; return (Fun v e p)
+                     ; return (Fun v e p pos)
                      }
       args =      do { m_reserved "int"
                      ; v <- m_identifier

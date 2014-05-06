@@ -27,13 +27,15 @@ runState' p = runState (compProg p) (emptyTop 0, [], 0)
 
 type Error = [String]
 
+data Info = VarL Type | Func Type Int
+
 -- State Monad 
 -- ===========
 
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Env Name Type Int, Error, Int)
+type State    = (Env Name Info Int, Error, Int)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -62,28 +64,46 @@ addEnvLevel             =  S (\(env, e, n) -> ((), (addLevel env 0, e, n)))
 remEnvLevel             :: ST ()
 remEnvLevel             =  S (\(env, e, n) -> ((), (removeLevel env, e, n)))
 
-addEnvVar               :: Name -> Type -> ST ()
+addEnvVar               :: Name -> Info -> ST ()
 addEnvVar q t           =  S (\(env, e, n) -> ((), (env `addVar` (q, t), e, n)))
 
-getEnvVar                :: Name -> SourcePos -> ST Type
+getEnvVar                :: Name -> SourcePos -> ST Info
 getEnvVar q p            = do env <- getEnv 
                               case env `getVar` q of 
-                                                Nothing -> do writeError $ "undefined variable " ++ show q ++ " near: " ++ show p
-                                                              return Int
+                                                Nothing -> if "$" `isPrefixOf` q 
+                                                                then do writeError $ "undefined function " ++ show q ++ " near: " ++ show p
+                                                                        return (Func Int 0)
+                                                                else do writeError $ "undefined variable " ++ show q ++ " near: " ++ show p
+                                                                        return (VarL Int)
                                                 Just a  -> return a
 
-getEnv                  :: ST (Env Name Type Int)
+hasEnvVar               :: Name -> SourcePos -> ST ()
+hasEnvVar q p           = do env <- getEnv 
+                             case env `getVar` q of 
+                                        Nothing -> return ()
+                                        Just _  -> if "$" `isPrefixOf` q 
+                                                        then do let _:name = q
+                                                                writeError $ "double declaration of function " ++ show name ++ " near: " ++ show p
+                                                        else writeError $ "double declaration of " ++ show q ++ " near: " ++ show p
+                                                
+getEnv                  :: ST (Env Name Info Int)
 getEnv                  =  S (\(env, e, n) -> (env, (env, e, n)))
+
+start                           :: Prog -> ST IProg
+start p                         = do prog <- compProg p
+                                     hasEnvVar "$main" (initialPos "")
+                                     return prog
 
 -- [names of arguments] -> where should it start
 addFuncArgs             :: [Name] -> ST ()
 addFuncArgs []          = return ()
-addFuncArgs (n:ns)      = do addEnvVar n Int
+addFuncArgs (n:ns)      = do addEnvVar n (VarL Int)
                              addFuncArgs ns
 
 compProg                        :: Prog -> ST IProg
 compProg (GlobalVar n pos)      = return (IGlobalVar n)
-compProg (Fun n ns st)          = do addEnvVar n Int
+compProg (Fun n ns st pos)      = do hasEnvVar ('$':n) pos
+                                     addEnvVar ('$':n) (Func Int (Data.List.length ns))
                                      addEnvLevel
                                      addFuncArgs ns
                                      stmt <- compStmt st
@@ -95,7 +115,8 @@ compProg (PSeq xs)              = do list <- mapM compProg xs
                                      
                 
 compStmt                        :: Stmt -> ST IStmt
-compStmt (LocalVar n)           = do addEnvVar n Int
+compStmt (LocalVar n src)       = do hasEnvVar n src
+                                     addEnvVar n (VarL Int)
                                      return (ILocalVar n Empt)
 compStmt (Assign pos n e)       = do posV <- getEnvVar n pos
                                      compAssign n e
@@ -118,7 +139,8 @@ compStmt (While e p)            = tryExpr intAndBool e $ do { n <- getN
                                                             ; setN n'
                                                             ; let stmt = toList seq 
                                                             ; p' <- compStmt p
-                                                            ; return (IWhile stmt var (ISeqnE (toList (p' <| seq)) Empt) Empt Empt)
+                                                            --; return (IWhile stmt var (ISeqnE (toList (p' <| seq)) Empt) Empt Empt)
+                                                            ; return (IWhile stmt var (ISeqnE (addStmts p' stmt) Empt) Empt Empt)
                                                             }
 compStmt (If e p1 p2)           = tryExpr intAndBool e $ do { p1' <- compStmt p1
                                                             ; p2' <- compStmt p2
@@ -146,7 +168,10 @@ tryExpr t e a                   = if validExpression t e
                                         else do writeError $ "Invalid expression type near " ++ show (getExprSrc e)
                                                 return (ISeqn [])
                                                 
-                                     
+addStmts                        :: IStmt -> [IStmt] -> [IStmt]
+addStmts (ISeqnE xs e) ys       = (xs ++ ys)
+addStmts stmt        ys         = (stmt:ys)
+                                                
 compAssign                      :: Name -> Expr -> ST IStmt
 compAssign n (Val _ i)          = return (IAssign n (IVal i) Empt)
 compAssign n (Var pos v)        = do posV <- getEnvVar v pos
@@ -181,9 +206,15 @@ validExpressionVar (Compare _ _ e1 e2)  = do b1 <- validExpressionVar e1
 validExpressionVar (App _ _ e1 e2)      = do b1 <- validExpressionVar e1
                                              b2 <- validExpressionVar e2
                                              return (b1 && b2)
-validExpressionVar (Apply _ _ es)       = do let f False _ = return False
+validExpressionVar (Apply src n es)     = do Func _ i <- getEnvVar ('$':n) src
+                                             let len = Data.List.length es
+                                             let start = len == i
+                                             if start then return ()
+                                                      else writeError $ "function " ++ show n ++ " takes " ++ show i ++
+                                                                        " arguments (passed " ++ show len ++ ") near: " ++ show src
+                                             let f False _ = return False
                                                  f True  e = validExpressionVar e
-                                             b <- foldM f True es
+                                             b <- foldM f start es
                                              return b
                                              
 

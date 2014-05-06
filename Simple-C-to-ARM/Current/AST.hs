@@ -17,12 +17,12 @@ import Text.Parsec.Pos
 -- Basic declarations for the language:
 
 data Prog             =  GlobalVar Name SourcePos
-                      |  Fun Name [Name] Stmt 
+                      |  Fun Name [Name] Stmt SourcePos
                       |  PSeq [Prog]
                          deriving Show
 
 data Stmt             =  Ex Expr 
-                      |  LocalVar Name 
+                      |  LocalVar Name SourcePos
                       |  Assign SourcePos Name Expr 
                       |  If Expr Stmt Stmt 
                       |  While Expr Stmt 

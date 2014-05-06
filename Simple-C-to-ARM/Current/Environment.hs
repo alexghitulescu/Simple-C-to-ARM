@@ -7,6 +7,7 @@ module Environment (
     getExtra,
     setExtra,
     copyExtra,
+    remVarCLevel,
     getVarCLevel,
     addLevelCopy,
     addLevel,
@@ -55,6 +56,10 @@ setVar  EMPTY_ENV  (_,_)        = EMPTY_ENV
 setVar (E map d r e) (n,a)      = case M.lookup n map of
                                         Nothing -> E map d r (setVar e (n,a))
                                         Just _  -> E (M.insert n a map) d r e
+
+remVarCLevel                    ::Ord n => Env n a r -> n -> Env n a r
+remVarCLevel  EMPTY_ENV  _      = EMPTY_ENV
+remVarCLevel (E map d r e) n    = E (M.delete n map) d r e
                                         
 getExtra                        :: Env n a r -> r
 getExtra (E _ _ r _)            = r
@@ -79,7 +84,7 @@ addLevel                        :: Env n a r -> r -> Env n a r
 addLevel e r                    = E M.empty 0 r e
 
 addLevelCopy                    :: Env n a r -> Env n a r
-addLevelCopy (E map d r e)      = E M.empty 0 r (E map d r e)
+addLevelCopy (E map d r e)      = E map 0 r (E map d r e)
 
 removeLevel                     :: Env n a r -> Env n a r
 --removeLevel  EMPTY_ENV          = EMPTY_ENV

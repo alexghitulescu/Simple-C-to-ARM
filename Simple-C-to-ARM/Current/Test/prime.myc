@@ -2,7 +2,7 @@ int prime(int x)
 {
 	int p = 1;
 	int i;
-	for(i = 2; i < 3; i = i + 1)
+	for(i = 2; i <= x / 2; i = i + 1)
 	{
 		if(x % i == 0)
 		{
@@ -13,14 +13,27 @@ int prime(int x)
 }
 
 int main()
-{
-	int i;
-	for(i = 6; i < 10; i = i + 1)
+{ 
+	int nr;
+	nr = 0;
+	int j;
+	for(j = 3; j < 100; j = j + 1)
 	{
-		if(prime(i))
+		int p = 1;
+		int i;
+		for(i = 2; i <= j / 2; i = i + 1)
 		{
-			print(i);
+			if(j % i == 0)
+			{
+				p = 0;
+			}
+		}
+		if(p)
+		{
+			print(j);
+			j = j + 1;
+			nr = nr + 1;
 		}
 	}
-	print (10);
+	print(nr);
 }
