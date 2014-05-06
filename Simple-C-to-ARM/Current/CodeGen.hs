@@ -167,6 +167,7 @@ instToARM (STR r1 imd)      = case imd of
                                                 add3 "\t str " (getRegVal r1) ", [r3]"
                                                 comment "end"
                                 _         ->    add4 "\t str " (getRegVal r1) ", " (getImdVal imd (-4))
+instToARM (DEBUG _)         = return ()
 
 
 getImdVal               :: Imd -> Integer -> String

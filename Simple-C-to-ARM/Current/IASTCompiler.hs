@@ -18,7 +18,7 @@ import Helper
 import Environment
 import Extra
 
-debug = True
+debug = False
 
 comp                            :: IProg -> Code 
 comp p                          = case err of 
