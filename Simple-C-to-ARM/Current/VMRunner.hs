@@ -167,20 +167,12 @@ execCode c      = do inst <- retrieve c
                      (_, _, _, sp, _, s, _, _) <- state
                      let stack = take ((fromInteger sp) + 1) (assocs s)
                      liftIO $ printDebug ("\t\t\t | " {-++ show m ++ "|"-} ++ show stack ++ "\n>" ++ show inst)
-                     case inst of (PUSH i)                -> do push i
-                                                                execCode c
-                                                                
-                                  (PUSHV r)               -> do val <- getRegVal r
+                     case inst of (PUSHV r)               -> do val <- getRegVal r
                                                                 push val
                                                                 execCode c
                                                                 
                                   (POP r)                 -> do val <- pop
                                                                 setRegVal r val
-                                                                execCode c
-                                                                
-                                  (DO op)                 -> do val1 <- pop
-                                                                val2 <- pop
-                                                                push (compNr op val1 val2)
                                                                 execCode c
                                                                 
                                   (ADD rf r1 imd)         -> do val1 <- getRegVal r1

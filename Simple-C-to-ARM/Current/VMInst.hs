@@ -28,10 +28,8 @@ type Code             =  [Inst]
 type Mem              =  Map Name Integer
 
 data Inst             =  ADDRESS Name
-                      |  PUSH Integer
                       |  PUSHV Reg
                       |  POP Reg
-                      |  DO Op
                       |  ADD Reg Reg Imd
                       |  SUB Reg Reg Imd
                       |  MUL Reg Reg Imd

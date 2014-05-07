@@ -89,7 +89,7 @@ addEnvLevel             :: ST ()
 addEnvLevel             =  S (\(n, env, e, c, regEnv) -> ((), (n, addLevel env 0, e, c, regEnv)))
 
 addEnvLevel2            :: ST ()
-addEnvLevel2            =  S (\(n, E m1 d1 argNr e1, e, c, regEnv) -> ((), (n, addLevel (E m1 d1 argNr e1) argNr, e, c, regEnv)))
+addEnvLevel2            =  S (\(n, E m1 d1 argNr e1, e, c, regEnv) -> ((), (n, E m1 d1 argNr (E m1 d1 argNr e1), e, c, regEnv)))
 
 addRegLevel             :: ST ()
 addRegLevel             =  S (\(n, env, e, c, regEnv) -> ((), (n, env, e, c, addLevel regEnv (Inf2 registers [] []))))
@@ -194,7 +194,7 @@ getRegList              = do env <- getRegEnv
                                               return (Just r)
                           
 getReg                  :: Extra -> ST Reg
-getReg (I1 _ i)         = do reg1 <- getRegVar (i + 1)
+getReg (I1 _ i)         = do reg1 <- getRegVar i
                              case reg1 of
                                 Nothing -> do reg2 <- getRegList
                                               case reg2 of
@@ -248,7 +248,7 @@ revertRegChanges        :: ST ()
 revertRegChanges        = do E m1 _ r1 (E m2 d r2 e) <- getRegEnv
                              let list1 = M.toList m1
                              let f (r, Inf3 n1 i) = do case M.lookup r m2 of
-                                                        Nothing          -> addRegInfo r (Inf3 "#0" 2000000000)
+                                                        Nothing          -> return ()
                                                         Just (Inf3 n2 _) -> if n1 == n2 || "#" `isPrefixOf` n2
                                                                                         then return ()
                                                                                         else do emit (DEBUG $ "revering reg: " ++ show r)
@@ -268,7 +268,6 @@ revertRegChanges        = do E m1 _ r1 (E m2 d r2 e) <- getRegEnv
                              -- load removed registers (probably used for an integer value) from memory
                              let list2 = M.toList m2
                              mapM_ g list2
-                             setRegExtra r1
                              
 saveFuncRegVars         :: ST ()
 saveFuncRegVars         = do env <- getRegEnv 
@@ -472,18 +471,18 @@ check (r0, r1, r2) (n, v1, v2)  = do check' (r1,r2) (v1,v2)
 check' (r0, r1) (v0, v1)        = if r0 /= r1 then return ()
                                               else if v0 /= v1 then do regEnv <- getRegEnv
                                                                        let m = getMap regEnv
-                                                                       writeError $ show v0 ++ " and " ++ show v1 ++ " assigned to " ++ show r0 ++ ":" ++ show regEnv
+                                                                       writeError $ show v0 ++ " and " ++ show v1 ++ " assigned1 to " ++ show r0 ++ ":" ++ show regEnv
                                                                else return ()
 
 check'' (r0, r1) (n, v)         = if r0 /= r1 then return ()
                                               else case v of 
                                                 IVar n' -> if n /= n' then do regEnv <- getRegEnv
                                                                               let m = getMap regEnv
-                                                                              writeError $ show n ++ " and " ++ show n' ++ " assigned to " ++ show r0 ++ ":" ++ show regEnv
+                                                                              writeError $ show n ++ " and " ++ show n' ++ " assigned2 to " ++ show r0 ++ ":" ++ show regEnv
                                                                      else return ()
                                                 _       -> do regEnv <- getRegEnv
                                                               let m = getMap regEnv
-                                                              writeError $ show n ++ " and " ++ show v ++ " assigned to " ++ show r0 ++ ":" ++ show regEnv
+                                                              writeError $ show n ++ " and " ++ show v ++ " assigned3 to " ++ show r0 ++ ":" ++ show regEnv
 
 compVal                         :: Value -> Extra -> ST Reg
 compVal (IVal i) (I1 map ln)    = do reg <- getReg (I1 map ln)
@@ -501,9 +500,11 @@ compName n e                    = do Inf reg (Pos imd) saved <- getEnvVar n
                                                         Nothing -> addRegInfo reg' (Inf3 n 0)
                                                         Just a  -> addRegInfo reg' (Inf3 n a)
                                                      setEnvVar n (Inf (Rreg reg') (Pos imd) saved)
-                                                     if saved then do emit (LDR reg' imd)
+                                                     emit (LDR reg' imd)
+                                                     return reg'
+                                                     {-if saved then do emit (LDR reg' imd)
                                                                       return reg'
-                                                              else return reg'
+                                                              else return reg'-}
                                         Rreg r -> do case e `getVarNumber` n of
                                                         Nothing -> addRegInfo r (Inf3 n 0)
                                                         Just a  -> addRegInfo r (Inf3 n a)
@@ -521,7 +522,8 @@ compVal' LastReturn reg         = if (R "r0") /= reg then emit (MOV reg (P (R "r
 
 
 pushVal                         :: Value -> ST ()
-pushVal (IVal i)                = emit (PUSH i)
+pushVal (IVal i)                = do emit (MOV TEMP (VAL i))
+                                     emit (PUSHV TEMP)
 pushVal (IVar n)                = do Inf r (Pos imd) _ <- getEnvVar n
                                      case r of
                                         NoReg  -> do emit (LDR TEMP imd)

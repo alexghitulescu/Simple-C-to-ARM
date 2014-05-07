@@ -95,11 +95,6 @@ getRegVal (R n) = n
 
 instToARM                   :: Inst -> ST ()
 instToARM (ADDRESS n)       =    addVar n
-instToARM (PUSH i)          = do commentB ("PUSH " ++ show i)
-                                 add2 "\t mov r3, #" (show i)
-                                 add1 "\t push {r3}" 
-                                 comment "end"
-                                 
 instToARM (PUSHV (G n))     = do commentB ("PUSHV " ++ n)
                                  add2 "\t ldr r3, addr_" n 
                                  add1 "\t ldr r3, [r3]"
@@ -116,13 +111,6 @@ instToARM (POP (G n))       = do commentB ("POP " ++ n)
 
 instToARM (POP r)           =    add3 "\t pop {" (getRegVal r) "}"
                                  
-instToARM (DO op)           = do commentB ("DO " ++ (opToARM op))
-                                 add1 "\t pop {r3}"
-                                 add1 "\t pop {r4}"
-                                 add3 "\t " (opToARM op) " r3, r4, r3" 
-                                 add1 "\t push {r3}" 
-                                 comment "end"
-              
 instToARM (ADD SP r1 imd)   =    add4 "\t add sp, " (getRegVal r1) ", " (getImdVal imd (-4))
 instToARM (ADD SB r1 imd)   =    add4 "\t add r12, " (getRegVal r1) ", " (getImdVal imd (-4))
 instToARM (ADD rf r1 imd)   =    add6 "\t add " (getRegVal rf) ", " (getRegVal r1) ", " (getImdVal imd 1)   
