@@ -18,7 +18,7 @@ import Helper
 import Environment
 import Extra
 
-debug = False
+debug = True
 
 comp                            :: IProg -> Code 
 comp p                          = case err of 
@@ -49,7 +49,7 @@ data LevelInfo = Inf2 Registers [Name] [(Reg, Imd)] deriving Show
 data VarInfo = Inf3 Name Int
 
 instance Show VarInfo where
-  show (Inf3 n _) = show n
+  show (Inf3 n i) = show n ++ ":" ++ show i
 
 -- State Monad 
 -- ===========
@@ -87,6 +87,9 @@ writeError e            =  S ((\(n, env, err, c, regEnv) -> ((), (n, env, e:err,
 
 addEnvLevel             :: ST ()
 addEnvLevel             =  S (\(n, env, e, c, regEnv) -> ((), (n, addLevel env 0, e, c, regEnv)))
+
+addEnvLevel2            :: ST ()
+addEnvLevel2            =  S (\(n, E m1 d1 argNr e1, e, c, regEnv) -> ((), (n, addLevel (E m1 d1 argNr e1) argNr, e, c, regEnv)))
 
 addRegLevel             :: ST ()
 addRegLevel             =  S (\(n, env, e, c, regEnv) -> ((), (n, env, e, c, addLevel regEnv (Inf2 registers [] []))))
@@ -178,8 +181,9 @@ getRegVar i             = do regEnv <- getRegEnv
                              let f (_, Inf3 _ x) | x > i     = True
                                                  | otherwise = False
                              case listToMaybe (Data.List.filter f (M.toList m)) of
-                                Nothing         -> return Nothing
-                                Just (r, _)     -> return $ Just r
+                                Nothing              -> return Nothing
+                                Just (r, (Inf3 n _)) -> do saveVar n
+                                                           return $ Just r
 
 getRegList              :: ST (Maybe Reg)
 getRegList              = do env <- getRegEnv
@@ -190,7 +194,7 @@ getRegList              = do env <- getRegEnv
                                               return (Just r)
                           
 getReg                  :: Extra -> ST Reg
-getReg (I1 _ i)         = do reg1 <- getRegVar 10000000
+getReg (I1 _ i)         = do reg1 <- getRegVar (i + 1)
                              case reg1 of
                                 Nothing -> do reg2 <- getRegList
                                               case reg2 of
@@ -217,11 +221,15 @@ allocateRegSpace        = do env <- getRegEnv
 restoreRegisters        :: ST ()
 restoreRegisters        = do env <- getRegEnv
                              let Inf2 (Rs a b) ns regs = getExtra env
-                             emit (DEBUG $ "restoring registers" ++ show regs)
                              let f (r, imd) = emit (LDR r imd)
                              mapM_ f regs
-                             emit (DEBUG $ "restoring registers")
                              setRegExtra (Inf2 (Rs a b) ns [])
+                             
+restoreRegisters'       :: ST ()
+restoreRegisters'       = do env <- getRegEnv
+                             let Inf2 _ _ regs = getExtra env
+                             let f (r, imd) = emit (LDR r imd)
+                             mapM_ f regs
                              
 
 saveVar'                                :: Name -> Info -> ST ()
@@ -240,7 +248,7 @@ revertRegChanges        :: ST ()
 revertRegChanges        = do E m1 _ r1 (E m2 d r2 e) <- getRegEnv
                              let list1 = M.toList m1
                              let f (r, Inf3 n1 i) = do case M.lookup r m2 of
-                                                        Nothing          -> return ()
+                                                        Nothing          -> addRegInfo r (Inf3 "#0" 2000000000)
                                                         Just (Inf3 n2 _) -> if n1 == n2 || "#" `isPrefixOf` n2
                                                                                         then return ()
                                                                                         else do emit (DEBUG $ "revering reg: " ++ show r)
@@ -249,16 +257,17 @@ revertRegChanges        = do E m1 _ r1 (E m2 d r2 e) <- getRegEnv
                                                                                                 Inf _ imd saved <- getEnvVar n2
                                                                                                 setEnvVar n2 (Inf (Rreg r) imd saved)
                              -- restore registers to their original value
+                             remRegLevel
                              mapM_ f list1
                              let g (r, Inf3 n1 i) = do case M.lookup r m1 of
                                                         Nothing         -> do Inf _ (Pos imd) saved <- getEnvVar n1
                                                                               emit (DEBUG $ "revering var from memory: " ++ show n1)
+                                                                              writeError $ "revering var from memory: " ++ show n1 ++ " ?"
                                                                               emit (LDR r imd)
                                                         Just _          -> return()
                              -- load removed registers (probably used for an integer value) from memory
                              let list2 = M.toList m2
                              mapM_ g list2
-                             remRegLevel
                              setRegExtra r1
                              
 saveFuncRegVars         :: ST ()
@@ -274,11 +283,11 @@ removeFuncReg r n       =  do env <- getRegEnv
                               let fReg' = delete r fReg
                               setRegExtra (Inf2 (Rs fReg' a) (n:ns) b)
 
-correctStackAlignment   :: ST ()
+{-correctStackAlignment   :: ST ()
 correctStackAlignment   = do dis <- getTotalDisplacement
                              if dis `mod` 2 /= 0 then do addEnvDisplacement 1
                                                          emit (ADD SP SP (VAL 1))
-                                                 else return ()
+                                                 else return ()-}
                               
 removeGeneralReg        :: Reg -> ST ()
 removeGeneralReg r      =  do env <- getRegEnv 
@@ -323,6 +332,7 @@ compProg (IGlobalVar n)         = do info <- newInfoReg n (G n)
 compProg (IFun n ns st e)       = do emit (DEBUG $ "IFun" ++ show n)
                                      addEnvLevel
                                      addRegLevel
+                                     --save SB, LR
                                      emitCode   [LABEL (N n), PUSHV SB, MOV SB (P SP 0), PUSHV LR]
                                      setEnvDisplacement 2
                                      allocateRegSpace
@@ -331,7 +341,7 @@ compProg (IFun n ns st e)       = do emit (DEBUG $ "IFun" ++ show n)
                                      let stackArg = toInteger(Prelude.length ns) - 4
                                      if stackArg > 0 then setFuncArgNr stackArg
                                                      else setFuncArgNr 0
-                                     --save SB, LR and execute the code and increment SP by the number of args.
+                                     saveFuncRegVars
                                      compStmt st
                                      restoreRegisters
                                      envDis <- getEnvDisplacement
@@ -356,7 +366,6 @@ compStmt (IAssign n val e)      = do emit (DEBUG $ "IAssign" ++ show n ++ " " ++
                                      compVal' val r1
                                      emit (DEBUG $ "---------------" ++ "IAssign" ++ show n ++ " " ++ show val)
 compStmt (IPrint val e)         = do emit (DEBUG $ show (IPrint val Empt))
-                                     saveFuncRegVars
                                      compVal' val (R "r1")
                                      emit       (PRINT)
                                      emit (DEBUG $ "---------------" ++ show (IPrint val Empt))
@@ -365,7 +374,7 @@ compStmt (ISeqn  xs)            = mapM_ compStmt xs
 compStmt (ISeqnE xs e)          = do mark <- fresh
                                      emit (DEBUG $ show (ISeqnE [] Empt) ++ show mark)
                                      dis <- getEnvDisplacement
-                                     addEnvLevel
+                                     addEnvLevel2
                                      addRegLevel2
                                      setEnvDisplacement dis
                                      mapM_ compStmt xs
@@ -405,52 +414,76 @@ compStmt (IIf v p1 p2 e)        = do emit (DEBUG $ "IIf " ++ show v)
                                      emit (DEBUG $ "---------------" ++ "IIf " ++ show v)
 compStmt (IReturn v e)          = do emit (DEBUG $ show (IReturn v Empt))
                                      compVal' v (R "r0")
+                                     restoreRegisters'
+                                     envDis <- getEnvDisplacement
+                                     emitCode   [SUB SP SP (VAL (envDis - 2)), POP LR, POP SB]
+                                     env <- getEnv
+                                     let stackArg = getExtra env
+                                     if stackArg > 0 then emit (SUB SP SP (VAL stackArg))
+                                                     else return ()
+                                     emitCode   [BX NONE LR]
                                      emit (DEBUG "---------------")
 compStmt (IApply n vals res e)  = do emit (DEBUG $ "IApply " ++ show n)
                                      addTempVar res e -- result
-                                     saveFuncRegVars
                                      prepareFunctionCall vals 0
-                                     correctStackAlignment
+                                     --correctStackAlignment
                                      emit (BL NONE (N n))
                                      emit (DEBUG "---------------")
 compStmt (IApp n Div v1 v2 e)   = do emit (DEBUG $ show (IApp n Div v1 v2 Empt))
                                      addTempVar n e
-                                     saveFuncRegVars
                                      let r0 = (R "r0")
                                      let r1 = (R "r1")
                                      compVal' v1 r0
                                      compVal' v2 r1
-                                     correctStackAlignment
+                                     --correctStackAlignment
                                      emit (DIV r0 r0 r1)
                                      rd <- compName n e
                                      emit (MOV rd (P r0 0))
                                      emit (DEBUG "---------------")
 compStmt (IApp n Mod v1 v2 e)   = do emit (DEBUG $ show (IApp n Mod v1 v2 Empt))
                                      addTempVar n e
-                                     saveFuncRegVars
                                      let r0 = (R "r0")
                                      let r1 = (R "r1")
                                      compVal' v1 r0
                                      compVal' v2 r1
-                                     correctStackAlignment
+                                     --correctStackAlignment
                                      emit (MOD r1 r0 r1)
                                      rd <- compName n e
                                      emit (MOV rd (P r1 0))
                                      emit (DEBUG "---------------")
 compStmt (IApp n op v1 v2 e)    = do emit (DEBUG $ show (IApp n op v1 v2 Empt))
                                      addTempVar n e
+                                     adjustRegs e
                                      rd <- compName n e
                                      r1 <- compVal v1 e
                                      r2 <- compVal v2 e
+                                     check (rd,r1,r2) (n, v1, v2)
                                      case op of Add -> emit (ADD rd r1 (P r2 0))
                                                 Sub -> emit (SUB rd r1 (P r2 0))
                                                 Mul -> emit (MUL rd r1 (P r2 0))
-                                                Div -> do saveFuncRegVars
-                                                          emit (DIV rd r1 r2)
-                                                Mod -> do saveFuncRegVars
-                                                          emit (MOD rd r1 r2)
                                      emit (DEBUG "---------------")
 
+
+check                           :: (Reg, Reg, Reg) -> (Name, Value, Value) -> ST()
+check (r0, r1, r2) (n, v1, v2)  = do check' (r1,r2) (v1,v2)
+                                     check'' (r0,r1) (n,v1)
+                                     check'' (r0,r2) (n,v2)
+                        
+check' (r0, r1) (v0, v1)        = if r0 /= r1 then return ()
+                                              else if v0 /= v1 then do regEnv <- getRegEnv
+                                                                       let m = getMap regEnv
+                                                                       writeError $ show v0 ++ " and " ++ show v1 ++ " assigned to " ++ show r0 ++ ":" ++ show regEnv
+                                                               else return ()
+
+check'' (r0, r1) (n, v)         = if r0 /= r1 then return ()
+                                              else case v of 
+                                                IVar n' -> if n /= n' then do regEnv <- getRegEnv
+                                                                              let m = getMap regEnv
+                                                                              writeError $ show n ++ " and " ++ show n' ++ " assigned to " ++ show r0 ++ ":" ++ show regEnv
+                                                                     else return ()
+                                                _       -> do regEnv <- getRegEnv
+                                                              let m = getMap regEnv
+                                                              writeError $ show n ++ " and " ++ show v ++ " assigned to " ++ show r0 ++ ":" ++ show regEnv
 
 compVal                         :: Value -> Extra -> ST Reg
 compVal (IVal i) (I1 map ln)    = do reg <- getReg (I1 map ln)
@@ -501,9 +534,9 @@ prepareFunctionCall [] _        = return ()
 prepareFunctionCall (v:vs) i  
                 | i <= 3        = do compVal' v (R $ "r" ++ show i)
                                      prepareFunctionCall vs (i + 1)
-                | otherwise     = do pushVal v
-                                     prepareFunctionCall vs (i + 1)
-
+                | otherwise     = do prepareFunctionCall vs (i + 1)
+                                     pushVal v
+                                     
 
 jumpz                           :: Value -> Label -> Extra -> ST ()
 jumpz (IVal i) lb _             = if i == 0 then emit (B NONE lb) else return ()

@@ -60,6 +60,8 @@ registers = Rs funcRegisters generalRegisters
 funcRegisters = [R "r0", R "r1", R "r2", R "r3"]
 
 generalRegisters = [R "r4", R "r5", R "r6", R "r7", R "r8", R "r10", R "r11"]
+--generalRegisters = [R "r4", R "r5", R "r6"]
+--generalRegisters = [R "r4", R "r5", R "r6", R "r7", R "r8", R "r10", R "r11", R "r13", R "r14", R "r15", R "r16", R "r17", R "r18", R "r19", R "r20"]
 
 data Imd              = P Reg Integer | VAL Integer deriving (Show, Eq)
 

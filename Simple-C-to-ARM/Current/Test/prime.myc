@@ -1,37 +1,32 @@
-int prime(int x)
+int prime(int x, int a, int b, int c, int d, int e, int f, int g, int h, int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9)
 {
-	int p = 1;
 	int i;
 	for(i = 2; i <= x / 2; i = i + 1)
 	{
 		if(x % i == 0)
 		{
-			p = 0;
+			print (a + b + c + d + e + f + g + h + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9);
+			return 0;
 		}
 	}
-	return p;
+	print (a + b + c + d + e + f + g + h + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9);
+	return 1;
+}
+
+int prime1(int x)
+{
+	return prime(x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 int main()
 { 
-	int nr;
-	nr = 0;
+	int nr = 0;
 	int j;
-	for(j = 3; j < 100; j = j + 1)
+	for(j = 3; j < 10; j = j + 1)
 	{
-		int p = 1;
-		int i;
-		for(i = 2; i <= j / 2; i = i + 1)
-		{
-			if(j % i == 0)
-			{
-				p = 0;
-			}
-		}
-		if(p)
+		if(prime(j, prime1(j), 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17))
 		{
 			print(j);
-			j = j + 1;
 			nr = nr + 1;
 		}
 	}

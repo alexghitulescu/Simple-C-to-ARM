@@ -149,7 +149,8 @@ eval Div (IVal m) (IVal n)      = IVal $ m `div` n
 pos :: SourcePos
 pos = (initialPos "a")                                     
 
-test1 = App pos Add (App pos Add (Var pos "A") (Var pos "B")) (App pos Add (Var pos "A") (Var pos "B"))
+--test1 = App pos Add (App pos Add (Var pos "A") (Var pos "B")) (App pos Add (Var pos "A") (Var pos "B"))
+test1 = App pos Add (Var pos "A") (Var pos "B")
 
 test2 = App pos Add 
                 (Apply pos "fun" [(App pos Add (Var pos "A") (Var pos "B"))]) 
