@@ -144,6 +144,7 @@ eval Add (IVal m) (IVal n)      = IVal $ m + n
 eval Sub (IVal m) (IVal n)      = IVal $ m - n
 eval Mul (IVal m) (IVal n)      = IVal $ m * n
 eval Div (IVal m) (IVal n)      = IVal $ m `div` n
+eval Mod (IVal m) (IVal n)      = IVal $ m `mod` n
                 
 -- used for testing                                     
 pos :: SourcePos
@@ -166,11 +167,13 @@ test3 = Apply pos "fun2" [
                         
 test4 = Compare pos GT 
                 (Apply pos "fun" [(App pos Add (Var pos "A") (Var pos "B"))])
-                (App pos Add 
+                (App pos Mul 
                         (App pos Add (Var pos "A") (Var pos "B")) 
                         (App pos Add (Var pos "A") (Var pos "B")))
                         
-test5 = App pos Add (App pos Add (Val pos 4) (Val pos 5)) (App pos Add (Val pos 4) (Val pos 5))
+test5 = App pos Mul (App pos Sub (Val pos 8) (Val pos 5)) (App pos Div (Val pos 10) (Val pos 5))
+
+test6' = Compare pos GT (Compare pos GT (Var pos "A") (Var pos "B")) (Var pos "C")
 
 test6 = Compare pos GT 
                 (App pos Add 
