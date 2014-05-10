@@ -69,7 +69,7 @@ term = m_parens exprParser
               ; fmap (Var pos) m_identifier
               }
        <|> do { pos <- getPosition
-              ; fmap (Val pos) m_integer
+              ; fmap (Val pos . fromInteger) m_integer
               }
        <|> do { pos <- getPosition
               ; m_reserved "true"

@@ -33,7 +33,7 @@ data IStmt            =  ILocalVar Name Extra
                       |  E_STMT
                          deriving Show
                          
-data Value            =  IVal Integer 
+data Value            =  IVal Int 
                       |  IVar Name                       
                       |  LastReturn
                       |  ILit Name

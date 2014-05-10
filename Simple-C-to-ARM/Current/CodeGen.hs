@@ -81,9 +81,8 @@ codeToARM             :: Code -> [String]
 codeToARM p           = fst $ runState (codeToARM' p) (empty, [])
 
 codeToARM'            :: Code -> ST [String]
-codeToARM' []         = toString
-codeToARM' (x:xs)     = do instToARM x
-                           codeToARM' xs
+codeToARM' xs         = do mapM_ instToARM xs
+                           toString
 
 getRegVal       :: Reg -> String
 getRegVal PC    = "pc"
@@ -158,7 +157,7 @@ instToARM (STR r1 imd)      = case imd of
 instToARM (DEBUG _)         = return ()
 
 
-getImdVal               :: Imd -> Integer -> String
+getImdVal               :: Imd -> Int -> String
 getImdVal (VAL i) mul   = '#':show (i * mul)
 getImdVal (P r 0) mul   = getRegVal r
 getImdVal (P r i) mul   = "[" ++ (getRegVal r) ++ ", #" ++ show (i * mul) ++ "]"

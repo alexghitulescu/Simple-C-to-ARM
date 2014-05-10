@@ -73,5 +73,5 @@ infoStmt (IApp n op v1 v2 e) en = let en' = en `incNumber` 1 in
                                         Just i  -> let e' = e `copyNumber` en' in
                                                    let e1'' = (e' `addValue` v1) `addValue` v2 in
                                                    let e2'' = addValue2 (addValue2 e' en' v1) en' v2 in
-                                                   let I1 map i' = en' in 
-                                                   (e1'' `mergeExtraR` en', IApp n op v1 v2 (addName e2'' n i'))
+                                                   --let I1 map i' = en' in 
+                                                   (e1'' `mergeExtraR` en', IApp n op v1 v2 (addName e2'' n i))

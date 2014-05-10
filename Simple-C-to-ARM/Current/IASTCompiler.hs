@@ -18,7 +18,7 @@ import Helper
 import Environment
 import Extra
 
-debug = True
+debug = False
 
 comp                            :: IProg -> Code 
 comp p                          = case err of 
@@ -57,7 +57,7 @@ instance Show VarInfo where
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> (a, State) }
-type State    = (Integer, Env Name Info Integer, Error, Seq Inst, Env Reg VarInfo LevelInfo)
+type State    = (Int, Env Name Info Int, Error, Seq Inst, Env Reg VarInfo LevelInfo)
 
 apply         :: ST a -> State -> (a,State)
 apply (S f)  = f 
@@ -83,7 +83,7 @@ emitCode                :: Code -> ST ()
 emitCode c'             = S (\(n, env, e, c, regEnv) -> ((), (n, env, e, c >< fromList c', regEnv)))
 
 writeError              :: String -> ST ()
-writeError e            =  S ((\(n, env, err, c, regEnv) -> ((), (n, env, e:err, c, regEnv))))
+writeError e            =  S ((\(n, env, err, c, regEnv) -> ((), (n, env, ("internal error:" ++ e):err, c, regEnv))))
 
 addEnvLevel             :: ST ()
 addEnvLevel             =  S (\(n, env, e, c, regEnv) -> ((), (n, addLevel env 0, e, c, regEnv)))
@@ -112,25 +112,25 @@ setEnvVar q i           =  S (\(n, env, e, c, regEnv) -> ((), (n, env `setVar` (
 addRegInfo              :: Reg -> VarInfo -> ST ()
 addRegInfo r i          =  S (\(n, env, e, c, regEnv) -> ((), (n, env, e, c, regEnv `addVar` (r, i))))
 
-setEnvDisplacement      :: Integer -> ST ()
+setEnvDisplacement      :: Int -> ST ()
 setEnvDisplacement i    =  S (\(n, env, e, c, regEnv) -> ((), (n, env `setDisplacement` i, e, c, regEnv)))
 
-getEnvDisplacement      :: ST Integer
+getEnvDisplacement      :: ST Int
 getEnvDisplacement      =  S (\(n, env, e, c, regEnv) -> (displacement env, (n, env, e, c, regEnv)))
 
-getTotalDisplacement    :: ST Integer
+getTotalDisplacement    :: ST Int
 getTotalDisplacement    =  S (\(n, env, e, c, regEnv) -> (totalDisplacement env, (n, env, e, c, regEnv)))
 
-addEnvDisplacement      :: Integer -> ST ()
+addEnvDisplacement      :: Int -> ST ()
 addEnvDisplacement i    =  S (\(n, env, e, c, regEnv) -> ((), (n, env `addDisplacement` i, e, c, regEnv)))
 
-getEnv                  :: ST (Env Name Info Integer)
+getEnv                  :: ST (Env Name Info Int)
 getEnv                  =  S (\(n, env, e, c, regEnv) -> (env, (n, env, e, c, regEnv)))
 
 getRegEnv               :: ST (Env Reg VarInfo LevelInfo)
 getRegEnv               =  S (\(n, env, e, c, regEnv) -> (regEnv, (n, env, e, c, regEnv)))
 
-setFuncArgNr            :: Integer -> ST ()
+setFuncArgNr            :: Int -> ST ()
 setFuncArgNr i          =  S (\(n, env, e, c, regEnv) -> ((), (n, env `setExtra` i, e, c, regEnv)))
 
 setRegExtra             :: LevelInfo -> ST ()
@@ -159,13 +159,13 @@ addTempVar n e          = if "@" `isPrefixOf` n
 getEnvVar               :: Name -> ST Info
 getEnvVar q             = do env <- getEnv 
                              case env `getVar` q of 
-                                        Nothing -> do writeError $ "internal error: could not find " ++ (show q)
+                                        Nothing -> do writeError $ "could not find " ++ (show q)
                                                       --return (Inf NoReg (Pos (P SB 0)) False)
                                                       return NoInfo
                                         Just p  -> return p
                                                    
 
-getRegMin               :: Int -> ST (Reg, Name)
+getRegMin               :: Int -> ST Reg
 getRegMin i             = do regEnv <- getRegEnv
                              let m = getMap regEnv
                              let (r, Inf3 n _) = minimumBy comp (M.toList m)
@@ -173,14 +173,15 @@ getRegMin i             = do regEnv <- getRegEnv
                                                 comp (_, Inf3 _ x) (_, Inf3 _ y) | x > i     = Prelude.LT
                                                                                  | y > i     = Prelude.GT
                                                                                  | otherwise = compare x y
-                             return (r, n)
+                             saveVar n
+                             return r
 
 getRegVar               :: Int -> ST (Maybe Reg)
 getRegVar i             = do regEnv <- getRegEnv
                              let m = getMap regEnv
-                             let f (_, Inf3 _ x) | x > i     = True
-                                                 | otherwise = False
-                             case listToMaybe (Data.List.filter f (M.toList m)) of
+                             let f (Inf3 _ x) | x > i     = True
+                                              | otherwise = False
+                             case listToMaybe (M.toList $ M.filter f m) of
                                 Nothing              -> return Nothing
                                 Just (r, (Inf3 n _)) -> do saveVar n
                                                            return $ Just r
@@ -198,9 +199,7 @@ getReg (I1 _ i)         = do reg1 <- getRegVar i
                              case reg1 of
                                 Nothing -> do reg2 <- getRegList
                                               case reg2 of
-                                                Nothing -> do (reg3, name) <- getRegMin i
-                                                              saveVar name
-                                                              return reg3
+                                                Nothing -> getRegMin i
                                                 Just r  -> return r
                                 Just r  -> return r
 getReg e                = do writeError $ "invalid extra: " ++ show e
@@ -310,11 +309,11 @@ newInfo n               = do dis <- getEnvDisplacement
                              emit       (ADD SP SP (VAL 1))
                              return (Inf NoReg (Pos imd) False)
                                 
-newInfoStack            :: Name -> Integer -> Info
+newInfoStack            :: Name -> Int -> Info
 newInfoStack n i        = Inf NoReg (Pos $ P SB (-i)) True
                                                 
 -- [names of arguments] -> where should it start
-addFuncArgs             :: [Name] -> Integer -> ST ()
+addFuncArgs             :: [Name] -> Int -> ST ()
 addFuncArgs [] _        = return ()
 addFuncArgs (n:ns) i
            | i <= 3     = do info <- newInfoReg n (R $ "r" ++ show i)
@@ -337,7 +336,7 @@ compProg (IFun n ns st e)       = do emit (DEBUG $ "IFun" ++ show n)
                                      allocateRegSpace
                                      --prepare the environment for function arguments
                                      addFuncArgs ns 0
-                                     let stackArg = toInteger(Prelude.length ns) - 4
+                                     let stackArg = Prelude.length ns - 4
                                      if stackArg > 0 then setFuncArgNr stackArg
                                                      else setFuncArgNr 0
                                      saveFuncRegVars
@@ -550,13 +549,7 @@ jumpz (LastReturn) lb _         = do emit (CMP (R "r0") (VAL 0))
 jumpz (IComp c v1 v2) lb e      = do r1 <- compVal v1 e
                                      r2 <- compVal v2 e
                                      emit (CMP r1 (P r2 0))
-                                     emit (B (condOpposite c) lb)
-                                     
-compStmts                     :: [IStmt] -> ST()
-compStmts []                  = return ()
-compStmts (e:es)              = do compStmt e
-                                   compStmts es
-                                     
+                                     emit (B (condOpposite c) lb)                                   
                                      
 condOpposite            :: Cond -> Cond
 condOpposite AST.EQ     = NE          

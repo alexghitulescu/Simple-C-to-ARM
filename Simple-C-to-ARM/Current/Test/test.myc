@@ -1,6 +1,6 @@
 int result;
 
-int fib(int i)
+/*int fib(int i)
 {	
 	print (i);
 	int a;
@@ -20,14 +20,15 @@ int fib(int i)
 		print (c);
 	}
 	result = b;
-}
+}*/
 
 int main () 
 {
 	//for (int i = 12; i ; i = i - 1)
 	//{
-		print (16);
-		fib(16);
-		print (result);
+		int a = 10;
+		int b = a + 1;
+		int c = b + 20;
+		print (b);
 	//}
 }

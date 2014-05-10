@@ -52,7 +52,7 @@ printInst fileName  = do code <- getCode fileName
 printIProg           :: String -> IO()
 printIProg fileName  = do prog <- parseFile fileName
                           prog' <- compE prog
-                          print prog'
+                          ppIProg prog'
                           putStr "\n--------------------------\n"
                           let prog'' = cleanIProg prog'
                           ppIProg $ prog''

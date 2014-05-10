@@ -23,22 +23,22 @@ import AST
 import VMInst
 import qualified Data.Map as M
 
-data Env n a r                    = EMPTY_ENV | E (M.Map n a) Integer r (Env n a r)
+data Env n a r                    = EMPTY_ENV | E (M.Map n a) Int r (Env n a r)
                                   deriving Show
                                   
 emptyTop r                      = E M.empty 0 r EMPTY_ENV
 
-displacement                    :: Env n a r -> Integer
+displacement                    :: Env n a r -> Int
 displacement (E _ d _ _)        = d
 
-totalDisplacement               :: Env n a r -> Integer
+totalDisplacement               :: Env n a r -> Int
 totalDisplacement  EMPTY_ENV    = 0
 totalDisplacement (E _ d _ e)   = d + totalDisplacement e
 
-setDisplacement                 :: Env n a r -> Integer -> Env n a r
+setDisplacement                 :: Env n a r -> Int -> Env n a r
 setDisplacement (E map _ r e) i = E map i r e
 
-addDisplacement                 :: Env n a r -> Integer -> Env n a r
+addDisplacement                 :: Env n a r -> Int -> Env n a r
 addDisplacement (E map d r e) i = E map (d + i) r e
                 
 addVar                          :: Ord n => Env n a r -> (n, a) -> Env n a r
@@ -73,7 +73,7 @@ getMap (E map _ _ _)            = map
 
 copyExtra                       :: Env n a r -> Env n a r -> Env n a r
 copyExtra e EMPTY_ENV           = e
-copyExtra EMPTY_ENV e           = let (E _ d r _) = e in E M.empty d r e
+copyExtra EMPTY_ENV e           = let (E _ d r _) = e in E M.empty d r EMPTY_ENV
 copyExtra (E map _ _ e) o       = let (E _ d r _) = o in E map d r e
 
 getVarCLevel                    :: Ord n => Env n a r -> n -> Maybe a

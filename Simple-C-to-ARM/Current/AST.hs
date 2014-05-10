@@ -32,7 +32,7 @@ data Stmt             =  Ex Expr
                       |  Return Expr 
                          deriving Show
 
-data Expr             =  Val SourcePos Integer 
+data Expr             =  Val SourcePos Int 
                       |  Var SourcePos Name 
                       |  Lit SourcePos Name
                       |  Compare SourcePos Cond Expr Expr

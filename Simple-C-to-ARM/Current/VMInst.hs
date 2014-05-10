@@ -21,11 +21,11 @@ import Data.Map
 -- Virtual machine
 -- ===============
 
-type Stack            =  Array Integer
+type Stack            =  Array Int
 
 type Code             =  [Inst]
 
-type Mem              =  Map Name Integer
+type Mem              =  Map Name Int
 
 data Inst             =  ADDRESS Name
                       |  PUSHV Reg
@@ -44,7 +44,7 @@ data Inst             =  ADDRESS Name
                       |  PRINT
                       |  HALT
                       |  LDR Reg Imd
-                      |  LDRV Reg Integer
+                      |  LDRV Reg Int
                       |  STR Reg Imd
                       |  DEBUG String
                          deriving (Show, Eq)
@@ -61,8 +61,8 @@ generalRegisters = [R "r4", R "r5", R "r6", R "r7", R "r8", R "r10", R "r11"]
 --generalRegisters = [R "r4", R "r5", R "r6"]
 --generalRegisters = [R "r4", R "r5", R "r6", R "r7", R "r8", R "r10", R "r11", R "r13", R "r14", R "r15", R "r16", R "r17", R "r18", R "r19", R "r20"]
 
-data Imd              = P Reg Integer | VAL Integer deriving (Show, Eq)
+data Imd              = P Reg Int | VAL Int deriving (Show, Eq)
 
 data CFlag            = EQ' | GT' | LT' | NONE' deriving (Show, Eq)
                          
-data Label            = V Integer | N Name deriving (Show, Eq)
+data Label            = V Int | N Name deriving (Show, Eq)
