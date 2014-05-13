@@ -1,0 +1,43 @@
+// global variable
+//int result;
+
+int double(int a)
+{
+	return (a * 2);
+}
+
+int fib(int a)
+{
+	if(a < 2)
+	{
+		return (a);
+	}
+	else
+	{
+		return (fib(a - 1) + fib(a - 2));
+	}
+}
+
+int main () 
+{
+	//global var asignment
+	//result = 15;
+	
+	//print(result);
+	
+	//local var
+	int x;
+	x = 15;
+	print(x);
+	print (10);
+	// expression test
+	print(x + x);
+	print(x - x);
+	print(x + 5);
+	
+	// function test 
+	
+	print(double(30));
+	
+	fib(10);
+}

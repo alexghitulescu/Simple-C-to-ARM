@@ -1,0 +1,84 @@
+IPSeq [
+IFun "fib"["a"](Extra: I1 (fromList [("@t0000000",6),("@t0000001",1),("@t0000002",3),("@t0000003",1),("@t0000004",0),("a",1)]) 1) {
+   IIf (IComp LT (IVar "a") (IVal 2)) (Extra: I1 (fromList [("a",1)]) 1) {
+      ISeqn [
+         IReturn (IVal 1) (I1 (fromList []) 0)
+      ]
+   } else {
+      ISeqn [
+         IApp "@t0000000" Sub (IVar "a") (IVal 1) (I1 (fromList [("@t0000000",6),("a",7)]) 7)
+         IApply "fib" [IVar "@t0000000"] "@t0000001" (I1 (fromList [("@t0000000",6)]) 6)
+         IAssign "@t0000001" LastReturn (I1 (fromList [("@t0000001",1)]) 5)
+         IApp "@t0000002" Sub (IVar "a") (IVal 2) (I1 (fromList [("@t0000002",3),("a",4)]) 4)
+         IApply "fib" [IVar "@t0000002"] "@t0000003" (I1 (fromList [("@t0000002",3)]) 3)
+         IAssign "@t0000003" LastReturn (I1 (fromList [("@t0000003",1)]) 2)
+         IApp "@t0000004" Add (IVar "@t0000001") (IVar "@t0000003") (I1 (fromList [("@t0000001",1),("@t0000003",1),("@t0000004",0)]) 1)
+         IReturn (IVar "@t0000004") (I1 (fromList [("@t0000004",0)]) 0)
+      ]
+   }
+}
+IFun "b"["a"](Extra: I1 (fromList [("@t0000000",0),("a",1)]) 1) {
+   IIf (IComp LT (IVar "a") (IVal 10)) (Extra: I1 (fromList [("a",1)]) 1) {
+      ISeqn [
+         IReturn (IVal 10) (I1 (fromList []) 0)
+      ]
+   } else {
+      ISeqn [
+         IApply "b" [IVal 1] "@t0000000" (I1 (fromList []) 2)
+         IAssign "@t0000000" LastReturn (I1 (fromList [("@t0000000",0)]) 1)
+         IReturn (IVar "@t0000000") (I1 (fromList [("@t0000000",0)]) 0)
+      ]
+   }
+}
+IFun "main"[](Extra: I1 (fromList [("@t0000000",2),("b",1)]) 6) {
+   ISeqn [
+      E_STMT
+      E_STMT
+      ILocalVar "b" (I1 (fromList [("b",1)]) 6)
+      IAssign "b" (IVal 20) (I1 (fromList [("b",1)]) 5)
+      E_STMT
+      E_STMT
+      IApply "fib" [IVal 20] "@t0000000" (I1 (fromList []) 4)
+      IAssign "@t0000000" LastReturn (I1 (fromList [("@t0000000",2)]) 3)
+      IPrint (IVar "@t0000000") (I1 (fromList [("@t0000000",2)]) 2)
+      IPrint (IVar "b") (I1 (fromList [("b",1)]) 1)
+   ]
+}
+]
+
+int fib(int a)
+{
+	if(a < 2)
+	{
+		return 1;
+	}
+	else
+	{
+		return fib(a - 1) + fib(a - 2);
+	}
+}
+
+int b(int a)
+{
+	if(a < 10)
+	{
+		return (10);
+	}
+	else
+	{
+		return (b(1));
+	}
+}
+
+int main () 
+{
+	int a;
+	a = 10;
+	int b;
+	b = 20;
+	int c;
+	c = a;
+	//print (fib(b(19) * 2));
+	print (fib(20));
+	print (b);
+}

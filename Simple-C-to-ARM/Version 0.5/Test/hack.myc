@@ -1,0 +1,32 @@
+int fib()
+{	
+	int a;
+	int b;
+	int c;
+	int t;
+	a = 1;
+	b = 1;
+	c = i - 1;
+	while (c)
+	{
+		t = b;
+		b = a + b;
+		a = t;
+		c = c - 1;
+	}
+}
+
+int decI()
+{
+	i = i + 1;
+}
+
+int main (int test) 
+{
+	for (int i = 2; i - 32; decI())
+	{
+		fib();
+		print (b);
+		//print (i);
+	}
+}

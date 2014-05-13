@@ -1,0 +1,123 @@
+IPSeq [
+IFun "fib"["a"](Extra: I1 
+        (fromList [("@t0000000",12),("@t0000001",7),("@t0000002",9),("@t0000003",7),("@t0000004",6),("@t0000005",1),("a",14),("b",2),("c",2)]) 15) {
+   ISeqn [
+      ILocalVar "b" (I1 (fromList [("b",2)]) 15)
+      IIf (IComp LT (IVar "a") (IVal 2)) (Extra: I1 (fromList [("a",13)]) 14) {
+         ISeqnE [
+            IAssign "b" (IVal 1) (I1 (fromList [("b",2)]) 6)
+         ]
+      } else {
+         ISeqnE [
+            IApp "@t0000000" Sub (IVar "a") (IVal 1) (I1 (fromList [("@t0000000",12),("a",10)]) 13)
+            IApply "fib" [IVar "@t0000000"] "@t0000001" (I1 (fromList [("@t0000000",12)]) 12)
+            IAssign "@t0000001" LastReturn (I1 (fromList [("@t0000001",7)]) 11)
+            IApp "@t0000002" Sub (IVar "a") (IVal 2) (I1 (fromList [("@t0000002",9),("a",10)]) 10)
+            IApply "fib" [IVar "@t0000002"] "@t0000003" (I1 (fromList [("@t0000002",9)]) 9)
+            IAssign "@t0000003" LastReturn (I1 (fromList [("@t0000003",7)]) 8)
+            IApp "@t0000004" Add (IVar "@t0000001") (IVar "@t0000003") (I1 (fromList [("@t0000001",7),("@t0000003",7),("@t0000004",6)]) 7)
+            IAssign "b" (IVar "@t0000004") (I1 (fromList [("@t0000004",6),("b",2)]) 6)
+         ]
+      }
+      ILocalVar "c" (I1 (fromList [("c",2)]) 4)
+      IAssign "c" (IVal 10) (I1 (fromList [("c",2)]) 3)
+      IApp "@t0000005" Add (IVar "b") (IVar "c") (I1 (fromList [("@t0000005",1),("b",2),("c",2)]) 2)
+      IReturn (IVar "@t0000005") (I1 (fromList [("@t0000005",1)]) 1)
+   ]
+}
+IFun "b"["a"](Extra: I1 (fromList [("@t0000006",6),("@t0000007",2),("@t0000008",1),("a",8)]) 8) {
+   ISeqn [
+      IIf (IComp LT (IVar "a") (IVal 10)) (Extra: I1 (fromList [("a",7)]) 8) {
+         ISeqnE [
+            IApp "@t0000006" Add (IVar "a") (IVal 10) (I1 (fromList [("@t0000006",6),("a",7)]) 7)
+            IReturn (IVar "@t0000006") (I1 (fromList [("@t0000006",6)]) 6)
+         ]
+      } else {
+         E_STMT
+      }
+      IApply "b" [IVal 1] "@t0000007" (I1 (fromList []) 4)
+      IAssign "@t0000007" LastReturn (I1 (fromList [("@t0000007",2)]) 3)
+      IApp "@t0000008" Add (IVal 1) (IVar "@t0000007") (I1 (fromList [("@t0000007",2),("@t0000008",1)]) 2)
+      IReturn (IVar "@t0000008") (I1 (fromList [("@t0000008",1)]) 1)
+   ]
+}
+IFun "main"[](Extra: I1 (fromList [("@t0000009",13),("@t0000010",11),("@t0000011",9),("@t0000012",7),("a",16),("b",12),("c",11)]) 21) {
+   ISeqn [
+      ILocalVar "a" (I1 (fromList [("a",16)]) 21)
+      IAssign "a" (IVal 10) (I1 (fromList [("a",16)]) 20)
+      ILocalVar "b" (I1 (fromList [("b",12)]) 19)
+      IAssign "b" (IVal 20) (I1 (fromList [("b",12)]) 18)
+      ILocalVar "c" (I1 (fromList [("c",11)]) 17)
+      IAssign "c" (IVar "a") (I1 (fromList [("a",12),("c",11)]) 16)
+      IApply "fib" [IVal 20] "@t0000009" (I1 (fromList []) 15)
+      IAssign "@t0000009" LastReturn (I1 (fromList [("@t0000009",13)]) 14)
+      IPrint (IVar "@t0000009") (I1 (fromList [("@t0000009",13)]) 13)
+      IWhile (Extra1: I1 (fromList [("@t0000010",11),("@t0000011",9),("@t0000012",7),("a",12),("b",12),("c",11)]) 12)
+             (Extra2: I1 (fromList [("@t0000010",5),("@t0000011",3),("@t0000012",7),("a",9),("b",6),("c",5)]) 9) [
+         IApp "@t0000010" Add (IVar "a") (IVar "b") (I1 (fromList [("@t0000010",11),("a",9),("b",6)]) 12)
+         IApp "@t0000011" Add (IVar "@t0000010") (IVar "c") (I1 (fromList [("@t0000010",5),("@t0000011",9),("c",5)]) 11)
+      ]
+      IComp LT (IVar "@t0000011") (IVal 100) {
+         ISeqnE [
+            ISeqnE [
+               IPrint (IVar "a") (I1 (fromList [("a",8)]) 9)
+               IApp "@t0000012" Sub (IVar "a") (IVal 1) (I1 (fromList [("@t0000012",7),("a",6)]) 8)
+               IAssign "a" (IVar "@t0000012") (I1 (fromList [("@t0000012",7),("a",6)]) 7)
+            ]
+            IApp "@t0000010" Add (IVar "a") (IVar "b") (I1 (fromList [("@t0000010",5),("a",3),("b",2)]) 6)
+            IApp "@t0000011" Add (IVar "@t0000010") (IVar "c") (I1 (fromList [("@t0000010",5),("@t0000011",3),("c",1)]) 5)
+         ]
+      }
+      IPrint (IVar "a") (I1 (fromList [("a",3)]) 3)
+      IPrint (IVar "b") (I1 (fromList [("b",2)]) 2)
+      IPrint (IVar "c") (I1 (fromList [("c",1)]) 1)
+   ]
+}
+]
+
+
+
+int fib(int a)
+{
+	int b;
+	if(a < 2)
+	{
+		b = 1;
+	}
+	else
+	{
+		b = fib(a - 1) + fib(a - 2);
+	}
+	int c;
+	c = 10;
+	return b + c;
+}
+
+int b(int a)
+{
+	
+	if(a < 10)
+	{
+		return (a + 10);
+	}
+	return (1 + b(1));
+}
+
+int main () 
+{
+	int a;
+	a = 10;
+	int b;
+	b = 20;
+	int c;
+	c = a;
+	print (fib(20));
+	while(a + b + c < 100)
+	{
+		print (a);
+		a = a - 1;
+	}
+	print (a);
+	print (b);
+	print (c);
+}

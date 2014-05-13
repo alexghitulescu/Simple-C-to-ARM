@@ -1,0 +1,25 @@
+int double(int a)
+{
+	return (a * 2);
+}
+
+int rec(int a)
+{
+	if(a)
+	{
+		print(a);
+		return (rec (a - 1));
+	}
+	else
+	{
+		print(a);
+		return (-1);
+	}
+}
+
+int main () 
+{
+	print (double(5));
+		
+	print (rec(10));
+}

@@ -1,0 +1,32 @@
+int main()
+{
+	int a;
+	a = 20;
+	int b;
+	b = 10;
+	int c;
+	c = 20;
+	int d;
+	d = 1;
+	int e;
+	e = 4;
+	int f;
+	f = 5;
+	int k;
+	k = 10;
+	int i;
+	int j;
+	for(i = 0;i < 6;i = i + 1)
+	{
+		for(j = 0;j < 2000000;j = j + 1)
+		{
+			a = a + d + b + e + c + f + c;
+			b = b + k;
+			a = a - b;
+			b = b - k;
+			a = a - c * 2;
+		}
+	}
+	print(a);
+	print(b);
+}
