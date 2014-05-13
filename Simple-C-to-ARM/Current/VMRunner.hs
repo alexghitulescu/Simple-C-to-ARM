@@ -229,7 +229,7 @@ processDebug "help"     = do liftIO $ do putStrLn "mem: prints the contents of t
                                          putStrLn "run: resumes the program, ignoring any other break points"
                                          putStrLn "con: resumes the program"
                                          putStrLn "step: step through the program"
-                                         putStrLn "rem: when on a BREAK instructions, the BREAK instruction gets removed"
+                                         putStrLn "rem: when on a BREAK instructions, the BREAK instruction gets deactivated"
                              noRun
                              noPrint
 processDebug x          = do liftIO $ putStrLn "unknown command. type \"help\" for instructions"
@@ -237,7 +237,7 @@ processDebug x          = do liftIO $ putStrLn "unknown command. type \"help\" f
                              noPrint
 
 processDebug2           :: String -> SourcePos -> ST ()
-processDebug2 "rem" p   = do liftIO $ putStrLn ("BREAK " ++ show p ++ " removed")
+processDebug2 "rem" p   = do liftIO $ putStrLn ("BREAK " ++ show p ++ " deactivated")
                              insertR p
                              noRun
                              noPrint
