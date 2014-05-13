@@ -1,4 +1,4 @@
-
+{-# LANGUAGE ExistentialQuantification #-}
 module VMRunner (
      execPrint
 ) where
@@ -7,6 +7,9 @@ import Prelude hiding (EQ, LT, GT, compare)
 import Data.Array.IArray
 import Data.Foldable (toList)
 import Data.List
+import Text.Printf
+import Text.Parsec.Pos
+import Control.Exception
 import qualified Data.Sequence as Sq
 import qualified Data.Map as M
 import AST
@@ -19,34 +22,37 @@ tempReg = "scratch"
 end = 10000000
 debug = False
 
-execM                   :: Code -> IO State
-execM c                 = do let index = elemIndex (LABEL (N "main")) c
+execM                   :: Code -> Bool -> IO State
+execM c b               = do let index = elemIndex (LABEL (N "main")) c
                              case index of 
                                 Nothing -> do putStrLn "Could not find function \"main\""
-                                              return (0, 0, 0, 0, M.empty, array (0, 0) [], NONE', Sq.empty)
-                                Just i  -> do result <- runState (start c) (i, 0, length c + 1, -1, M.empty, stack, NONE', Sq.empty)
+                                              return (0, 0, 0, 0, M.empty, array (0, 0) [], NONE', emptyBr b)
+                                Just i  -> do result <- runState (start c) (i, 0, length c + 1, -1, M.empty, stack, NONE', emptyBr b)
                                               return $ fst result
                                                                         where stack = array (0, stackSize) [(i, 999) | i <- [0..stackSize]]
 
-execPrint                       :: Code -> IO ()
-execPrint c                     = do putStr "Started execution\n"
-                                     (pc, sb, lr, sp, m, s, cflag, stdout) <- execM c
+execPrint                       :: Code -> Bool -> IO ()
+execPrint c b                   = do putStr "Started execution\n"
+                                     (pc, sb, lr, sp, m, s, cflag, stdout) <- execM c b
                                      let stack = take (sp + 1) (assocs s)
-                                     putStr ("(pc: " ++ show(pc) ++ ", sb: " ++ show(sb) ++ ", lr: " ++ show(lr))
+                                     putStr ("\n(pc: " ++ show(pc) ++ ", sb: " ++ show(sb) ++ ", lr: " ++ show(lr))
                                      putStr (", sp: " ++ show(sp) ++ ", mem: " ++ show(m) ++ ", stack: " ++ show(stack))
-                                     putStr (", flag: " ++ show(cflag) {-++ "\n stdout:\n" ++ intercalate "" (toList stdout)-} ++ "\n")
+                                     putStrLn (", flag: " ++ show(cflag))
 
 printDebug                      :: String -> IO ()
 printDebug s                    = if debug then putStrLn s
                                            else return ()
-                                     
+
+data Breaks = Br (M.Map SourcePos Bool) Bool Bool Bool Bool
+emptyBr bool = Br M.empty bool False True True
+                                           
 -- State Monad 
 -- ===========
 
 -- Declaration for the state monad and a new type runState to save writing State -(a, State).
 
 data ST a     = S { runState :: State -> IO (a, State) }
-type State    = (Int, Int, Int, Int, Mem, Stack Int, CFlag, Sq.Seq String)
+type State    = (Int, Int, Int, Int, Mem, Stack Int, CFlag, Breaks)
 
 instance Monad ST where
       -- return :: a -> ST a
@@ -64,8 +70,11 @@ liftIO io = S $ \st -> do x <- io
 next          :: ST ()
 next          =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc + 1, sb, lr, sp, m, s, cflag, stdout)))
 
+{-prev          :: ST ()
+prev          =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc - 1, sb, lr, sp, m, s, cflag, stdout)))
+
 nothing       :: ST ()
-nothing       =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s, cflag, stdout)))
+nothing       =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s, cflag, stdout)))-}
 
 pop           :: ST Int
 pop           =  S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> if sp < 0 then do putStrLn ("pop; stack underflow: " ++ show sp)
@@ -156,17 +165,116 @@ start c         = do addAddress (filter (isAddress) c)
                      mapM_ put [("r4",-991),("r5",-991),("r6",-991),("r7",-991),("r8",-991),("r10",-991),("r11",-991)]
                      execCode c
                      
-printToStd        :: String -> ST ()
-printToStd string = S (\(pc, sb, lr, sp, m, s, cflag, stdout) -> return ((), (pc, sb, lr, sp, m, s, cflag, stdout Sq.|> string)))
+isDebug         :: ST Bool 
+isDebug         = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug step print run) -> return (debug, (pc, sb, lr, sp, m, s, cflag, Br map debug step print run)))
 
-execCode        :: Code -> ST State
-execCode c      = do inst <- retrieve c
-                     next
-                     m <- mem
-                     (_, _, _, sp, _, s, _, _) <- state
-                     let stack = take (sp + 1) (assocs s)
-                     liftIO $ printDebug ("\t\t\t | " {-++ show m ++ "|"-} ++ show stack ++ "\n>" ++ show inst)
-                     case inst of (PUSHV r)               -> do val <- getRegVal r
+stopDebug       :: ST ()
+stopDebug       = S (\(pc, sb, lr, sp, m, s, cflag, Br map _ _ _ _) -> return ((), (pc, sb, lr, sp, m, s, cflag, Br map False False False True))) 
+
+startStep       :: ST ()
+startStep       = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug _ print run) -> return ((), (pc, sb, lr, sp, m, s, cflag, Br map debug True print run))) 
+
+isStep          :: ST Bool
+isStep          = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug step print run) -> return (step, (pc, sb, lr, sp, m, s, cflag, Br map debug step print run)))  
+
+stopStep        :: ST ()
+stopStep        = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug _ print run) -> return ((), (pc, sb, lr, sp, m, s, cflag, Br map debug False print run))) 
+
+insertP         :: SourcePos -> ST Bool
+insertP pos     = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug step pr run) -> case M.lookup pos map of
+                                                                                   Nothing -> return (True, (pc, sb, lr, sp, m, s, cflag, 
+                                                                                                                 Br (M.insert pos True map) debug step pr run))
+                                                                                   Just a  -> return (a, (pc, sb, lr, sp, m, s, cflag, 
+                                                                                                                                    Br map debug step pr run)))  
+
+insertR         :: SourcePos -> ST ()
+insertR pos     = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug step pr run) -> return ((), (pc, sb, lr, sp, m, s, cflag, 
+                                                                                                               Br (M.insert pos False map) debug step pr run)))
+
+isPrint         :: ST Bool
+isPrint         = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug step print run) -> if print
+                                                                                        then return (print, (pc, sb, lr, sp, m, s, cflag, 
+                                                                                                                                  Br map debug step print run))
+                                                                                        else return (False, (pc, sb, lr, sp, m, s, cflag, 
+                                                                                                                                  Br map debug step True run)))
+
+noPrint         :: ST ()
+noPrint         = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug step _ run) -> return ((), (pc, sb, lr, sp, m, s, cflag, Br map debug step False run)))
+
+isRun         :: ST Bool
+isRun         = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug step print run) -> if run
+                                                                                        then return (run, (pc, sb, lr, sp, m, s, cflag, 
+                                                                                                                                  Br map debug step print run))
+                                                                                        else return (False, (pc, sb, lr, sp, m, s, cflag, 
+                                                                                                                                Br map debug step print True)))
+
+noRun         :: ST ()
+noRun         = S (\(pc, sb, lr, sp, m, s, cflag, Br map debug step print _) -> return ((), (pc - 1, sb, lr, sp, m, s, cflag, Br map debug step print False)))
+                                                                                 
+processDebug            :: String -> ST ()
+processDebug "mem"      = do m <- mem
+                             liftIO $ putStrLn (show m)
+                             noRun
+                             noPrint
+processDebug "stack"    = do (_, _, _, sp, _, s, _, _) <- state
+                             let stack = take (sp + 1) (assocs s)
+                             liftIO $ putStrLn (show stack)
+                             noRun
+                             noPrint
+processDebug "run"      = stopDebug
+processDebug "con"      = stopStep
+processDebug "step"     = return ()
+processDebug "help"     = do liftIO $ do putStrLn "mem: prints the contents of the memory"
+                                         putStrLn "stack: prints the contents of the stack"
+                                         putStrLn "run: resumes the program, ignoring any other break points"
+                                         putStrLn "con: resumes the program"
+                                         putStrLn "step: step through the program"
+                                         putStrLn "rem: when on a BREAK instructions, the BREAK instruction gets removed"
+                             noRun
+                             noPrint
+processDebug x          = do liftIO $ putStrLn "unknown command. type \"help\" for instructions"
+                             noRun
+                             noPrint
+
+processDebug2           :: String -> SourcePos -> ST ()
+processDebug2 "rem" p   = do liftIO $ putStrLn ("BREAK " ++ show p ++ " removed")
+                             insertR p
+                             noRun
+                             noPrint
+processDebug2 l     _   = processDebug l
+
+execCode    :: Code -> ST State
+execCode c  = do inst <- retrieve c
+                 next
+                 m <- mem
+                 (_, _, _, sp, _, s, _, _) <- state
+                 let stack = take (sp + 1) (assocs s)
+                 liftIO $ printDebug ("\t\t\t | " {-++ show m ++ "|"-} ++ show stack ++ "\n>" ++ show inst)
+                 step <- isStep
+                 if step 
+                    then do print <- isPrint
+                            if print then liftIO $ putStrLn ("next: " ++ show inst)
+                                     else return ()
+                            line <- liftIO $ getLine
+                            case inst of 
+                                   (BREAK pos) -> processDebug2 line pos
+                                   _           -> processDebug line
+                    else 
+                         case inst of      
+                                  (BREAK pos) -> do b1 <- insertP pos
+                                                    b2 <- isDebug
+                                                    if b1 && b2 then do liftIO $ putStrLn (show $ BREAK pos)
+                                                                        startStep
+                                                                        line <- liftIO $ getLine
+                                                                        processDebug2 line pos
+                                                                else return ()
+                                  _           -> return ()
+                 run <- isRun
+                 if not run
+                        then execCode c
+                        else case inst of 
+                                  (BREAK pos)             -> execCode c
+                                  (PUSHV r)               -> do val <- getRegVal r
                                                                 push val
                                                                 execCode c
                                                                 
@@ -211,9 +319,21 @@ execCode c      = do inst <- retrieve c
                                                                 
                                   (LABEL l)               -> execCode c
                                                                 
-                                  (PRINT)                 -> do s <- getRegVal (R "r1")
-                                                                liftIO $ putStr(show s ++ "\n")
-                                                                printToStd (show s ++ "\n")
+                                  (PRINT str i)           -> do vs <- getValues i
+                                                                let vs' = map Pt $ reverse vs
+                                                                let str' = read str
+                                                                liftIO $ do result <- try  $ putStr . printfa str' $ vs' :: IO (Either SomeException ())
+                                                                            case result of
+                                                                              Left e  -> putStrLn $ ' ':(show e)
+                                                                              Right _ -> return ()
+                                                                execCode c
+
+                                  (READ reg)              -> do nr <- liftIO $ do number <- getLine
+                                                                                  result <- try  $ evaluate (read number) :: IO (Either SomeException Int)
+                                                                                  case result of
+                                                                                     Left _  -> return 0
+                                                                                     Right n -> return n
+                                                                setRegVal reg nr
                                                                 execCode c
                                                                 
                                   (HALT)                  -> do s <- state
@@ -240,7 +360,7 @@ execCode c      = do inst <- retrieve c
                                                                 
                                   (CMP r1 imd)            -> do r1val <- getRegVal r1
                                                                 imdval <- getImdVal imd
-                                                                liftIO $ printDebug (":::::" ++ show r1val ++ " vs " ++ show imdval ++ ":::::")
+                                                                --liftIO $ printDebug (":::::" ++ show r1val ++ " vs " ++ show imdval ++ ":::::")
                                                                 setCflag (compare r1val imdval)
                                                                 execCode c
                                   (DEBUG s)               -> execCode c
@@ -258,7 +378,16 @@ getImdVal               :: Imd -> ST Int
 getImdVal (VAL i)       = return i
 getImdVal (P r i)       = do val <- getRegVal r
                              return (val + i)
-                                                        
+         
+getValues               :: Int -> ST [Int]
+getValues i | i == 0    = return []         
+            | i <= 3    = do v <- getRegVal (R $ "r" ++ show i)
+                             vs <- getValues (i - 1)
+                             return $ v:vs
+            | otherwise = do vs <- getValues (i - 1)
+                             v <- pop
+                             return $ v:vs
+         
 execInstBX              :: Code -> Cond -> Reg -> ST State
 execInstBX c cond reg   = do b <- validCflag cond
                              if b then
@@ -266,7 +395,7 @@ execInstBX c cond reg   = do b <- validCflag cond
                                    --liftIO $ putStr ("jumping to position: " ++ show pos ++ "\n")
                                    jumpI c pos
                              else 
-                                nothing
+                                return ()
                              execCode c
                       
 execInstB               :: Code -> Cond -> Label -> ST State
@@ -275,7 +404,7 @@ execInstB c cond l      = do b <- validCflag cond
                                 do --liftIO $ putStr ("jumping to label: " ++ show l ++ "\n")
                                    jump c l
                              else 
-                                nothing
+                                return ()
                              execCode c
 
 compare                         :: Int -> Int -> CFlag
@@ -312,3 +441,11 @@ compNr Div m n  = m `quot` n
 isAddress               :: Inst -> Bool
 isAddress (ADDRESS _)   = True
 isAddress _             = False
+
+data PrintfArgT = forall a. PrintfArg a => Pt a
+
+printfa :: PrintfType t => String -> [ PrintfArgT ] -> t
+printfa format = printfa' format . reverse
+  where printfa' :: PrintfType t => String -> [ PrintfArgT ] -> t
+        printfa' format [] = printf format
+        printfa' format (Pt a:as) = printfa' format as a

@@ -26,11 +26,13 @@ data IStmt            =  ILocalVar Name Extra
                       |  IWhile [IStmt] Value IStmt Extra Extra
                       |  ISeqn [IStmt]
                       |  ISeqnE [IStmt] Extra
-                      |  IPrint Value Extra
+                      |  IPrint String [Value] Extra
                       |  IReturn Value Extra
                       |  IApply Name [Value] Name Extra
                       |  IApp Name Op Value Value Extra
                       |  E_STMT
+                      |  IRead Name Extra
+                      |  IBreak SourcePos
                          deriving Show
                          
 data Value            =  IVal Int 

@@ -44,6 +44,7 @@ instance Monad ST where
 data Tree               =  Leaf Value 
                         |  Node Op Value Value 
                         |  Ap Value Name [Value]
+                        |  Rd Name
                            deriving (Show, Ord, Eq)
       
 -- The function that generates the fresh labels. It is of type ST showing that it has a hidden state. 
@@ -107,6 +108,10 @@ toDAG (Var _ v)                 = do let val = IVar v
 toDAG (Lit _ n)                 = do let val = ILit n
                                      add val (Leaf val)
                                      return val
+toDAG (Read _)                  = do name <- fresh
+                                     let val = IVar name
+                                     add2 val (Rd name)
+                                     return val
 toDAG (Compare _ c e1 e2)       = do v1 <- toDAG e1
                                      v2 <- toDAG e2
                                      let val = IComp c v1 v2
@@ -137,6 +142,9 @@ resolve ((IVar n, Node op v1 v2):ns)            = do v1' <- getValue v1
 resolve ((IVar n, Ap _ f vs):ns)                = do vs' <- mapM getValue vs
                                                      addStmt (IApply f vs' n Empt)
                                                      addStmt (IAssign n LastReturn Empt)
+                                                     resolve ns
+
+resolve ((IVar n, Rd _):ns)                     = do addStmt (IRead n Empt)
                                                      resolve ns
 
 eval                            :: Op -> Value -> Value -> Value

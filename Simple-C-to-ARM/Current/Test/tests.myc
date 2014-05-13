@@ -18,26 +18,45 @@ int fib(int a)
 	}
 }
 
+int test(int a, int b, int c, int d, int e, int f)
+{
+	print("\n%d\n",a);
+	print("%d\n",b);
+	print("%d\n",c);
+	<br>;
+	print("%d\n",d);
+	print("%d\n",e);
+	print("%d\n\n",f);
+	print("enter a number: ");
+	int x = read();
+	
+	
+	print("x = %d",              x                      );
+}
+
 int main () 
 {
+	<br>;
 	//global var asignment
 	//result = 15;
 	
 	//print(result);
 	
 	//local var
+	print("enter a number: ");
 	int x;
-	x = 15;
-	print(x);
-	print (10);
+	x = read();
+	print("%d \n",x);
+	print ("%d",10);
 	// expression test
-	print(x + x);
-	print(x - x);
-	print(x + 5);
+	print("\"%d\"\n",x + x);
+	print("%d",x - x);
+	print("%d",x + 5);
 	
 	// function test 
 	
-	print(double(30));
-	
+	print("test\n");
+	print("%d %d %d %d %d %d %d", 0, 1, 2, 3, 4, 5);
 	fib(10);
+	test(1,2,3,4,5,6);
 }

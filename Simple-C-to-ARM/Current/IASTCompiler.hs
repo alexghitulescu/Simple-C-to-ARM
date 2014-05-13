@@ -160,8 +160,8 @@ getEnvVar               :: Name -> ST Info
 getEnvVar q             = do env <- getEnv 
                              case env `getVar` q of 
                                         Nothing -> do writeError $ "could not find " ++ (show q)
-                                                      --return (Inf NoReg (Pos (P SB 0)) False)
-                                                      return NoInfo
+                                                      return (Inf NoReg (Pos (P SB 0)) False)
+                                                      --return NoInfo
                                         Just p  -> return p
                                                    
 
@@ -363,10 +363,14 @@ compStmt (IAssign n val e)      = do emit (DEBUG $ "IAssign" ++ show n ++ " " ++
                                      r1 <- compName n e
                                      compVal' val r1
                                      emit (DEBUG $ "---------------" ++ "IAssign" ++ show n ++ " " ++ show val)
-compStmt (IPrint val e)         = do emit (DEBUG $ show (IPrint val Empt))
-                                     compVal' val (R "r1")
-                                     emit       (PRINT)
-                                     emit (DEBUG $ "---------------" ++ show (IPrint val Empt))
+compStmt (IPrint str vs e)      = do emit (DEBUG $ show (IPrint str vs Empt))
+                                     --compVal' val (R "r1")
+                                     prepareFunctionCall vs 1
+                                     let args = Prelude.length vs
+                                     emit (PRINT str args)
+                                     emit (DEBUG $ "---------------" ++ show (IPrint str vs Empt))
+compStmt (IRead n e)            = do rd <- compName n e
+                                     emit (READ rd)
 compStmt (E_STMT)               = return ()
 compStmt (ISeqn  xs)            = mapM_ compStmt xs
 compStmt (ISeqnE xs e)          = do mark <- fresh
@@ -460,6 +464,7 @@ compStmt (IApp n op v1 v2 e)    = do emit (DEBUG $ show (IApp n op v1 v2 Empt))
                                                 Sub -> emit (SUB rd r1 (P r2 0))
                                                 Mul -> emit (MUL rd r1 (P r2 0))
                                      emit (DEBUG "---------------")
+compStmt (IBreak pos)           = emit (BREAK pos)
 
 
 check                           :: (Reg, Reg, Reg) -> (Name, Value, Value) -> ST()

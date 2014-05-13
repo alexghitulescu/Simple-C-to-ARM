@@ -90,7 +90,9 @@ getEnv                  :: ST (Env Name Info Int)
 getEnv                  =  S (\(env, e, n) -> (env, (env, e, n)))
 
 start                           :: Prog -> ST IProg
-start p                         = do prog <- compProg p
+start p                         = do addEnvVar ("$printf") (Func Int $ -1)
+                                     addEnvVar ("$print") (Func Int $ -1)
+                                     prog <- compProg p
                                      hasEnvVar "$main" (initialPos "")
                                      return prog
 
@@ -120,12 +122,14 @@ compStmt (LocalVar n src)       = do hasEnvVar n src
                                      return (ILocalVar n Empt)
 compStmt (Assign pos n e)       = do posV <- getEnvVar n pos
                                      compAssign n e
-compStmt (Print e)              = tryExpr [Int] e $ do { n <- getN
-                                                       ; (seq, var, n') <- transform' e n
-                                                       ; setN n'
-                                                       ; let stmt = toList $ seq |> (IPrint var Empt)
-                                                       ; return (ISeqn stmt)
-                                                       }
+compStmt (Print str e)          = do let bools = map (validExpression [Int]) e
+                                     if and bools then do { n <- getN
+                                                          ; (seq, var, n') <- transforM' e n
+                                                          ; setN n'
+                                                          ; let stmt = toList $ seq |> (IPrint str var Empt)
+                                                          ; return (ISeqn stmt)
+                                                          }
+                                                  else return $ ISeqn []
 compStmt (Seqn  [])             = return (E_STMT)
 compStmt (SeqnE [])             = return (E_STMT)
 compStmt (Seqn  xs)             = do list <- mapM compStmt xs
@@ -161,6 +165,7 @@ compStmt (Return e)             = tryExpr [Int] e $ do { n <- getN
                                                        ; let stmt = toList $ seq |> (IReturn var Empt)
                                                        ; return (ISeqn stmt)
                                                        }
+compStmt (Break pos)            = return $ IBreak pos
 
 tryExpr                         :: [Type] -> Expr -> ST IStmt -> ST IStmt
 tryExpr t e a                   = if validExpression t e 
@@ -178,6 +183,7 @@ compAssign n (Var pos v)        = do posV <- getEnvVar v pos
                                      return (IAssign n (IVar v) Empt)
 compAssign _ (Lit pos _)        = do writeError $ "Invalid assignment near " ++ show pos
                                      return (ISeqn [])
+compAssign n (Read _)           = return (IRead n Empt)
 compAssign _ (Compare p _ _ _)  = do writeError $ "Invalid assignment near " ++ show p
                                      return (ISeqn [])
 compAssign name expr            = do n <- getN
@@ -192,6 +198,15 @@ transform' e i                  = do valid <- validExpressionVar e
                                         True -> return (transform e i)
                                         False -> return (empty, IVal 0, 0)
 
+transforM'                      :: [Expr] -> Int -> ST (Seq IStmt, [Value], Int)
+transforM' [    ] i             = return (empty, [], i)
+transforM' (e:es) i             = do valid <- validExpressionVar e
+                                     case valid of 
+                                        True -> do let (seq, v, i') = transform e i
+                                                   (seq', vs, i'') <- transforM' es i'
+                                                   return (seq >< seq', v:vs, i'')
+                                        False -> transforM' es i
+
 validExpressionVar                      :: Expr -> ST Bool
 validExpressionVar (Val _ _)            = return True
 validExpressionVar (Var src n)          = do env <- getEnv 
@@ -200,6 +215,7 @@ validExpressionVar (Var src n)          = do env <- getEnv
                                                               return False
                                                 Just _  -> return True
 validExpressionVar (Lit _ _)            = return True
+validExpressionVar (Read _ )            = return True
 validExpressionVar (Compare _ _ e1 e2)  = do b1 <- validExpressionVar e1
                                              b2 <- validExpressionVar e2
                                              return (b1 && b2)
@@ -225,6 +241,7 @@ parseType                       :: Expr -> Type
 parseType (Val _ _)             = Int
 parseType (Var _ _)             = Int
 parseType (Lit _ _)             = Str
+parseType (Read _ )             = Int
 parseType (Compare _ _ e1 e2)   = if (typeAnd (parseType e1) (parseType e2)) == Int then Bool else InvalidType
 parseType (App _ _ e1 e2)       = if (typeAnd (parseType e1) (parseType e2)) == Int then Int else InvalidType
 parseType (Apply _ _ es)        = if foldl (&&) True (map (validExpression intAndStr) es) then Int else InvalidType
@@ -244,6 +261,7 @@ getExprSrc                      :: Expr -> SourcePos
 getExprSrc (Val p _)            = p
 getExprSrc (Var p _)            = p
 getExprSrc (Lit p _)            = p
+getExprSrc (Read p )            = p
 getExprSrc (Compare p _ _ _)    = p
 getExprSrc (App p _ _ _)        = p
 getExprSrc (Apply p _ es)       = p                          
