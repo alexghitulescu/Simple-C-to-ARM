@@ -29,7 +29,7 @@ def = javaStyle{ commentStart = "/*"
               , identLetter = alphaNum <|> char '_'
               , opStart = oneOf "~&=:"
               , opLetter = oneOf "~&=:"
-              , reservedNames = ["true", "false", "print", "return", "read()", "<br>"] ++ types ++ conditional
+              , reservedNames = ["true", "false", "printf", "return", "read", "<br>"] ++ types ++ conditional
               , reservedOpNames = ["~", "&", "=", "+=", "+", "-", "*", "%"] ++ comparators 
               , caseSensitive = True
               }
@@ -63,7 +63,12 @@ table = [ [Infix (do {pos <- getPosition ; m_reservedOp "*" ; return (App pos Mu
         ]
 term = m_parens exprParser
        <|> do { pos <- getPosition
-              ; m_reserved "read()"
+              ; m_reserved "read"
+              ; optional spaces
+              ; char '('
+              ; optional spaces
+              ; char ')'
+              ; optional spaces
               ; return $ Read pos
               }
        <|> do { pos <- getPosition
@@ -162,13 +167,17 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
                      ; p <- m_braces stmtParser
                      ; return (Seqn [a, While e (SeqnE [p, i])])
                      }
-              <|> do { m_reserved "print"
+              <|> do { m_reserved "printf"
+                     ; optional spaces
                      ; char '('
+                     ; optional spaces
                      ; s <- parseString
+                     ; optional spaces
                      ; do { char ','
-                          ; spaces
+                          ; optional spaces
                           ; b <- m_commaSep exprParser
                           ; char ')'
+                          ; optional spaces
                           ; return (Print s b) 
                           }
                        <|> do { char ')'
@@ -193,14 +202,14 @@ mainParser = m_whiteSpace >> progParser <* eof
       progParser = fmap PSeq (m_semiSep prog1)
       prog1 =     do { try func
                      }
-              <|> do { try decl
+              {-<|> do { try decl
                      }
       decl =      do { pos <- getPosition
                      ; m_reserved "int"
                      ; v <- m_identifier
                      ; m_semi
                      ; return (GlobalVar v pos)
-                     }
+                     }-}
       func =      do { pos <- getPosition
                      ; m_reserved "int"
                      ; v <- m_identifier

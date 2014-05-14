@@ -20,21 +20,21 @@ int fib(int a)
 
 int test(int a, int b, int c, int d, int e, int f)
 {
-	print("\n%d\n",a);
-	print("%d\n",b);
-	print("%d\n",c);
+	printf ( "\n%d\n" , a );
+	printf("%d\n" ,b);
+	printf("%d\n", c);
 	<br>;
-	print("%d\n",d);
-	print("%d\n",e);
-	print("%d\n\n",f);
-	print("enter a number: ");
-	int x = read();
+	printf( "%d\n",d );
+	printf ("%d\n",e) ;
+	printf("%d\n\n",f);
+	printf("enter a number: ");
+	int x = read ( ) ;
 	
 	
-	print("x = %d",              x                      );
+	printf("x = %d",              x                      );
 }
 
-int main () 
+int main() 
 {
 	<br>;
 	//global var asignment
@@ -43,20 +43,20 @@ int main ()
 	//print(result);
 	
 	//local var
-	print("enter a number: ");
+	printf("enter a number: ");
 	int x;
-	x = read();
-	print("%d \n",x);
-	print ("%d",10);
+	x = read( );
+	printf("%d \n",x);
+	printf ("%d",10);
 	// expression test
-	print("\"%d\"\n",x + x);
-	print("%d",x - x);
-	print("%d",x + 5);
+	printf("\"%d\"\n",x + x);
+	printf("%d",x - x);
+	printf("%d",x + 5);
 	
 	// function test 
 	
-	print("test\n");
-	print("%d %d %d %d %d %d %d", 0, 1, 2, 3, 4, 5);
+	printf("test\n");
+	printf("%d %d %d %d %d %d %d", 0, 1, 2, 3, 4, 5);
 	fib(10);
 	test(1,2,3,4,5,6);
 }

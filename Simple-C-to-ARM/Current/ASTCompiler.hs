@@ -23,8 +23,8 @@ compE p                         = case err of
                                                  return (IPSeq [])
                                    where (prog, (_, err, _)) = runState' p
                                               
-runState' p = runState (compProg p) (emptyTop 0, [], 0)                                              
-
+--runState' p = runState (compProg p) (emptyTop 0, [], 0)
+runState' p = runState (start p) (emptyTop 0, [], 0)                                              
 type Error = [String]
 
 data Info = VarL Type | Func Type Int
@@ -71,7 +71,8 @@ getEnvVar                :: Name -> SourcePos -> ST Info
 getEnvVar q p            = do env <- getEnv 
                               case env `getVar` q of 
                                                 Nothing -> if "$" `isPrefixOf` q 
-                                                                then do writeError $ "undefined function " ++ show q ++ " near: " ++ show p
+                                                                then do let _:name = q
+                                                                        writeError $ "undefined function " ++ show name ++ " near: " ++ show p
                                                                         return (Func Int 0)
                                                                 else do writeError $ "undefined variable " ++ show q ++ " near: " ++ show p
                                                                         return (VarL Int)
@@ -91,9 +92,10 @@ getEnv                  =  S (\(env, e, n) -> (env, (env, e, n)))
 
 start                           :: Prog -> ST IProg
 start p                         = do addEnvVar ("$printf") (Func Int $ -1)
-                                     addEnvVar ("$print") (Func Int $ -1)
+                                     --addEnvVar ("$print") (Func Int $ -1)
+                                     addEnvVar ("$read") (Func Int $ -1)
                                      prog <- compProg p
-                                     hasEnvVar "$main" (initialPos "")
+                                     getEnvVar "$main" (initialPos "")
                                      return prog
 
 -- [names of arguments] -> where should it start

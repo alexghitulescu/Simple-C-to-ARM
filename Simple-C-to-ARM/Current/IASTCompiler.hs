@@ -369,7 +369,8 @@ compStmt (IPrint str vs e)      = do emit (DEBUG $ show (IPrint str vs Empt))
                                      let args = Prelude.length vs
                                      emit (PRINT str args)
                                      emit (DEBUG $ "---------------" ++ show (IPrint str vs Empt))
-compStmt (IRead n e)            = do rd <- compName n e
+compStmt (IRead n e)            = do addTempVar n e
+                                     rd <- compName n e
                                      emit (READ rd)
 compStmt (E_STMT)               = return ()
 compStmt (ISeqn  xs)            = mapM_ compStmt xs

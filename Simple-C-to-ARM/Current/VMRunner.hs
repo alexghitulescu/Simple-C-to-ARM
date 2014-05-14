@@ -255,7 +255,8 @@ execCode c  = do inst <- retrieve c
                     then do print <- isPrint
                             if print then liftIO $ putStrLn ("next: " ++ show inst)
                                      else return ()
-                            line <- liftIO $ getLine
+                            line <- liftIO $ do putStr "> "
+                                                getLine
                             case inst of 
                                    (BREAK pos) -> processDebug2 line pos
                                    _           -> processDebug line
@@ -265,7 +266,8 @@ execCode c  = do inst <- retrieve c
                                                     b2 <- isDebug
                                                     if b1 && b2 then do liftIO $ putStrLn (show $ BREAK pos)
                                                                         startStep
-                                                                        line <- liftIO $ getLine
+                                                                        line <- liftIO $ do putStr "> "
+                                                                                            getLine
                                                                         processDebug2 line pos
                                                                 else return ()
                                   _           -> return ()
