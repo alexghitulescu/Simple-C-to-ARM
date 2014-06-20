@@ -2,7 +2,7 @@ int milesToKm(int miles)
 {
 	if(miles < 0)
 	{
-		printf("negative number!");
+		printf("negative number!\n");
 		return 0;
 	}
 	int temp = miles * 1600;
@@ -15,7 +15,7 @@ int minToHour(int min)
 {
 	if(min < 0)
 	{
-		printf("negative number!");
+		printf("negative number!\n");
 		return 0;
 	}
 	int h = min / 60;

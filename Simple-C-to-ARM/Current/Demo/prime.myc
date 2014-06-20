@@ -37,10 +37,10 @@ int main()
 	{
 		if(a == 2)
 		{
-			<br>;
+			//<br>;
 			int nr = 0; int i;
 			printf("enter lower bound: ");
-			<br>;
+			//<br>;
 			int min = read();
 			printf("enter upper bound: ");
 			int max = read();
@@ -51,11 +51,11 @@ int main()
 					nr = nr + 1;
 				}
 			}
-			printf("there are %d prime numbers between %d and %d", nr, min, max);
+			printf("there are %d prime numbers between %d and %d \n", nr, min, max);
 		}
 		else
 		{
-			printf("invalid option");
+			printf("invalid option \n");
 			return 1;
 		}
 	}
