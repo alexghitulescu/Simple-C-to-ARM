@@ -1,32 +1,26 @@
-int result;
-
-/*int fib(int i)
+int fib()
 {	
-	print (i);
 	int a;
 	int b;
 	int c;
 	int t;
 	a = 1;
 	b = 1;
-	c = i - 2;
-	print(c);
+	c = 20 - 2;
 	while (c)
 	{
 		t = b;
 		b = a + b;
 		a = t;
 		c = c - 1;
-		print (c);
 	}
-	result = b;
-}*/
+}
 
-int main () 
+int main (int test) 
 {
-	//for (int i = 12; i ; i = i - 1)
-	//{
-		int a = read();
-		print ("%d %d %d %d %d %d\n", a, 10, 20 ,30 , 40 ,50); 
-	//}
+	for (int i = 12; i ; i = i - 1)
+	{
+		fib();
+		print (b);
+	}
 }
