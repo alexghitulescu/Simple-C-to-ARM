@@ -4,8 +4,6 @@ module AST (
     Stmt (..),
     Expr (..),
     Name (..),
-    Cond (..),
-    Type (..),
     Op   (..)
 ) where
 
@@ -17,37 +15,31 @@ import Text.Parsec.Pos
 -- Basic declarations for the language:
 
 data Prog             =  GlobalVar Name SourcePos
-                      |  Fun Name [Name] Stmt SourcePos
+                      |  Fun Name [Name] Stmt 
                       |  PSeq [Prog]
                          deriving Show
 
 data Stmt             =  Ex Expr 
-                      |  LocalVar Name SourcePos
-                      |  Assign SourcePos Name Expr 
+                      |  LocalVar Name 
+                      |  Assign Name Expr 
                       |  If Expr Stmt Stmt 
                       |  While Expr Stmt 
                       |  Seqn [Stmt]
-                      |  SeqnE [Stmt]
-                      |  Print String [Expr]
+                      |  Print Expr 
                       |  Return Expr 
-                      |  Break SourcePos
                          deriving Show
 
-data Expr             =  Val SourcePos Int 
+data Expr             =  Val SourcePos Integer 
                       |  Var SourcePos Name 
-                      |  Lit SourcePos Name
-                      |  Compare SourcePos Cond Expr Expr
                       |  App SourcePos Op Expr Expr
-                      |  Apply SourcePos Name [Expr]
-                      |  Read SourcePos
+                      |  Apply Name [Expr] 
                          deriving Show
 
-data Cond             =  EQ | NE | GT | LT | GE | LE | NONE deriving (Show, Eq, Ord)
 
 type Name             =  String
 
-data Type             =  Int | Str | Bool | InvalidType
-                         deriving (Show, Eq)
+data Type             =  Int | Str 
+                         deriving Show
 
-data Op               =  Add | Sub | Mul | Div | Mod
-                         deriving (Show , Eq, Ord)
+data Op               =  Add | Sub | Mul | Div
+                         deriving (Show , Eq)

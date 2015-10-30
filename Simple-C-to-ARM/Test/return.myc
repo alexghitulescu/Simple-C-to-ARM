@@ -19,7 +19,10 @@ int rec(int a)
 
 int main () 
 {
-	print (double(5));
+	//for (int i = 12; i ; i = i - 1)
+	//{
+		print (double(5));
 		
-	print (rec(10));
+		print (rec(10));
+	//}
 }
