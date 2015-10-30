@@ -29,7 +29,7 @@ def = javaStyle{ commentStart = "/*"
               , identLetter = alphaNum <|> char '_'
               , opStart = oneOf "~&=:"
               , opLetter = oneOf "~&=:"
-              , reservedNames = ["true", "false", "printf", "return", "read", "<br>"] ++ types ++ conditional
+              , reservedNames = ["true", "false", "print", "return"] ++ types ++ conditional
               , reservedOpNames = ["~", "&", "=", "+=", "+", "-", "*", "%"] ++ comparators 
               , caseSensitive = True
               }
@@ -62,15 +62,6 @@ table = [ [Infix (do {pos <- getPosition ; m_reservedOp "*" ; return (App pos Mu
         ,  Infix (do {pos <- getPosition ; m_reservedOp "!=" ; return (Compare pos NE)}) AssocNone]
         ]
 term = m_parens exprParser
-       <|> do { pos <- getPosition
-              ; m_reserved "read"
-              ; optional spaces
-              ; char '('
-              ; optional spaces
-              ; char ')'
-              ; optional spaces
-              ; return $ Read pos
-              }
        <|> do { pos <- getPosition
               ; try $ funcParserExpr pos
               }
@@ -121,17 +112,6 @@ forParser    =  do { pos <- getPosition
                    ; i <- stmtParser
                    ; return (d, a, e, i)
                    }
-
-parseString :: Parser String
-parseString = do char '"'
-                 x <- many $ chars
-                 char '"'
-                 return $ show x
-    where chars = escaped <|> noneOf "\""
-          escaped = char '\\' >> choice (zipWith escapedChar codes replacements)
-          escapedChar code replacement = char code >> return replacement
-          codes        = ['b',  'n',  'f',  'r',  't',  '\\', '\"', '/']
-          replacements = ['\b', '\n', '\f', '\r', '\t', '\\', '\"', '/']
                    
 stmtParser :: Parser Stmt
 stmtParser = fmap Seqn (m_semiSep stmt1)
@@ -167,30 +147,13 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
                      ; p <- m_braces stmtParser
                      ; return (Seqn [a, While e (SeqnE [p, i])])
                      }
-              <|> do { m_reserved "printf"
-                     ; optional spaces
-                     ; char '('
-                     ; optional spaces
-                     ; s <- parseString
-                     ; optional spaces
-                     ; do { char ','
-                          ; optional spaces
-                          ; b <- m_commaSep exprParser
-                          ; char ')'
-                          ; optional spaces
-                          ; return (Print s b) 
-                          }
-                       <|> do { char ')'
-                              ; return (Print s [])
-                              }
+              <|> do { m_reserved "print"
+                     ; b <- m_parens exprParser
+                     ; return (Print b)
                      }
               <|> do { m_reserved "return"
                      ; e <- exprParser
                      ; return (Return e)
-                     }
-              <|> do { m_reserved "<br>"
-                     ; pos <- getPosition
-                     ; return (Break pos)
                      }
                   
 
@@ -202,14 +165,14 @@ mainParser = m_whiteSpace >> progParser <* eof
       progParser = fmap PSeq (m_semiSep prog1)
       prog1 =     do { try func
                      }
-              {-<|> do { try decl
+              <|> do { try decl
                      }
       decl =      do { pos <- getPosition
                      ; m_reserved "int"
                      ; v <- m_identifier
                      ; m_semi
                      ; return (GlobalVar v pos)
-                     }-}
+                     }
       func =      do { pos <- getPosition
                      ; m_reserved "int"
                      ; v <- m_identifier

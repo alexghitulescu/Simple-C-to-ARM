@@ -17,7 +17,6 @@ module VMInst (
 import AST
 import Data.Array.IArray
 import Data.Map
-import Text.Parsec.Pos
 
 -- Virtual machine
 -- ===============
@@ -42,14 +41,12 @@ data Inst             =  ADDRESS Name
                       |  B Cond Label
                       |  BL Cond Label
                       |  LABEL Label
-                      |  PRINT String Int
-                      |  READ Reg
+                      |  PRINT
                       |  HALT
                       |  LDR Reg Imd
                       |  LDRV Reg Int
                       |  STR Reg Imd
                       |  DEBUG String
-                      |  BREAK SourcePos
                          deriving (Show, Eq)
 
 data Reg              = SB | PC | LR | SP | TEMP | R Name | G Name deriving (Show, Eq, Ord)
@@ -60,8 +57,8 @@ registers = Rs funcRegisters generalRegisters
 
 funcRegisters = [R "r0", R "r1", R "r2", R "r3"]
 
-generalRegisters = [R "r4", R "r5", R "r6", R "r7", R "r8", R "r10", R "r11"]
---generalRegisters = [R "r4", R "r5", R "r6"]
+--generalRegisters = [R "r4", R "r5", R "r6", R "r7", R "r8", R "r10", R "r11"]
+generalRegisters = [R "r4", R "r5", R "r6"]
 --generalRegisters = [R "r4", R "r5", R "r6", R "r7", R "r8", R "r10", R "r11", R "r13", R "r14", R "r15", R "r16", R "r17", R "r18", R "r19", R "r20"]
 
 data Imd              = P Reg Int | VAL Int deriving (Show, Eq)

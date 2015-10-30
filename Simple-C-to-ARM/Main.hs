@@ -36,7 +36,7 @@ runInVM           :: String -> IO()
 runInVM fileName  = do code <- getCode fileName
                        case code of
                                 [] -> putStr "failed to compile\n"
-                                _  -> execPrint code True
+                                _  -> execPrint code
 
 getCode           :: String -> IO Code
 getCode fileName  = do prog <- parseFile fileName
@@ -60,19 +60,7 @@ printIProg fileName  = do prog <- parseFile fileName
                           ppIProg $ analyse prog''
                           
 main = do args <- getArgs
-          let prc = parseArgs def args
-          case prc of 
-                A _ _ True _    -> do putStr "output flag with no output file"
-                                      exitFailure
-                A f1 _ _ True   -> runInVM f1
-                A f1 f2 _ _     -> compile f1 f2
-              
-data Arg = A String String Bool Bool
-def = A "no file" "out.s" False False
-
-parseArgs                               :: Arg -> [String] -> Arg
-parseArgs args             []           = args
-parseArgs (A f1 _ True vm) (x:xs)       = parseArgs (A f1 x False vm) xs
-parseArgs (A f1 f2 _ vm) ("-o":xs)      = parseArgs (A f1 f2 True vm) xs
-parseArgs (A f1 f2 out _) ("-vm":xs)    = parseArgs (A f1 f2 out True) xs
-parseArgs (A _ f2 out vm) (x:xs)        = parseArgs (A x f2 out vm) xs
+          case args of 
+              []        -> putStr "no file as argument"
+              [x]       -> compile x "out.s"
+              (x:y:xs)  -> compile x y

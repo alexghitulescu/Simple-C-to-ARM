@@ -28,9 +28,8 @@ data Stmt             =  Ex Expr
                       |  While Expr Stmt 
                       |  Seqn [Stmt]
                       |  SeqnE [Stmt]
-                      |  Print String [Expr]
+                      |  Print Expr 
                       |  Return Expr 
-                      |  Break SourcePos
                          deriving Show
 
 data Expr             =  Val SourcePos Int 
@@ -39,7 +38,6 @@ data Expr             =  Val SourcePos Int
                       |  Compare SourcePos Cond Expr Expr
                       |  App SourcePos Op Expr Expr
                       |  Apply SourcePos Name [Expr]
-                      |  Read SourcePos
                          deriving Show
 
 data Cond             =  EQ | NE | GT | LT | GE | LE | NONE deriving (Show, Eq, Ord)
