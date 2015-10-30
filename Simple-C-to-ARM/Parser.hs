@@ -29,8 +29,8 @@ def = javaStyle{ commentStart = "/*"
               , identLetter = alphaNum <|> char '_'
               , opStart = oneOf "~&=:"
               , opLetter = oneOf "~&=:"
-              , reservedNames = ["true", "false", "printf", "return", "read", "<br>"] ++ types ++ conditional
-              , reservedOpNames = ["~", "&", "=", "+=", "+", "-", "*", "%"] ++ comparators 
+              , reservedNames = ["true", "false", "print", "return"] ++ types ++ conditional
+              , reservedOpNames = ["~", "&", "=", "+=", "+", "-", "*"] ++ comparators 
               , caseSensitive = True
               }
 
@@ -49,28 +49,19 @@ m_semiSep stmt  = sepEndBy1 stmt (optional m_semi)
 
 exprParser :: Parser Expr
 exprParser = buildExpressionParser table term <?> "expression"
-table = [ [Infix (do {pos <- getPosition ; m_reservedOp "*" ; return (App pos Mul)}) AssocLeft
-        ,  Infix (do {pos <- getPosition ; m_reservedOp "/" ; return (App pos Div)}) AssocLeft
-        ,  Infix (do {pos <- getPosition ; m_reservedOp "%" ; return (App pos Mod)}) AssocLeft]
-        , [Infix (do {pos <- getPosition ; m_reservedOp "+" ; return (App pos Add)}) AssocLeft
-        ,  Infix (do {pos <- getPosition ; m_reservedOp "-" ; return (App pos Sub)}) AssocLeft]
-        , [Infix (do {pos <- getPosition ; m_reservedOp "<"  ; return (Compare pos LT)}) AssocNone
-        ,  Infix (do {pos <- getPosition ; m_reservedOp "<=" ; return (Compare pos LE)}) AssocNone
-        ,  Infix (do {pos <- getPosition ; m_reservedOp ">"  ; return (Compare pos GT)}) AssocNone
-        ,  Infix (do {pos <- getPosition ; m_reservedOp ">=" ; return (Compare pos GE)}) AssocNone]
-        , [Infix (do {pos <- getPosition ; m_reservedOp "==" ; return (Compare pos EQ)}) AssocNone
-        ,  Infix (do {pos <- getPosition ; m_reservedOp "!=" ; return (Compare pos NE)}) AssocNone]
+table = [ {-[Prefix (m_reservedOp "~" >> return (Uno Not))]
+        , [Infix (m_reservedOp "&" >> return (Duo And)) AssocLeft]
+        ,-} [Infix ( do {pos <- getPosition  ; m_reservedOp "*" ; return (App pos Mul)}) AssocLeft]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "+" ; return (App pos Add)}) AssocLeft]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "-" ; return (App pos Sub)}) AssocLeft]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "==" ; return (Compare pos EQ)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "!=" ; return (Compare pos NE)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "<"  ; return (Compare pos LT)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp "<=" ; return (Compare pos LE)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp ">"  ; return (Compare pos GT)}) AssocNone]
+        , [Infix (do {pos <- getPosition ; m_reservedOp ">=" ; return (Compare pos GE)}) AssocNone]
         ]
 term = m_parens exprParser
-       <|> do { pos <- getPosition
-              ; m_reserved "read"
-              ; optional spaces
-              ; char '('
-              ; optional spaces
-              ; char ')'
-              ; optional spaces
-              ; return $ Read pos
-              }
        <|> do { pos <- getPosition
               ; try $ funcParserExpr pos
               }
@@ -78,7 +69,7 @@ term = m_parens exprParser
               ; fmap (Var pos) m_identifier
               }
        <|> do { pos <- getPosition
-              ; fmap (Val pos . fromInteger) m_integer
+              ; fmap (Val pos) m_integer
               }
        <|> do { pos <- getPosition
               ; m_reserved "true"
@@ -113,6 +104,7 @@ funcParserExpr pos      = do { v <- m_identifier
                      
 forParser    :: Parser (String, Stmt, Expr, Stmt)
 forParser    =  do { pos <- getPosition
+                   ; m_reserved "int"
                    ; d <- m_identifier
                    ; a <- asgnParser d pos
                    ; m_semi
@@ -121,28 +113,13 @@ forParser    =  do { pos <- getPosition
                    ; i <- stmtParser
                    ; return (d, a, e, i)
                    }
-
-parseString :: Parser String
-parseString = do char '"'
-                 x <- many $ chars
-                 char '"'
-                 return $ show x
-    where chars = escaped <|> noneOf "\""
-          escaped = char '\\' >> choice (zipWith escapedChar codes replacements)
-          escapedChar code replacement = char code >> return replacement
-          codes        = ['b',  'n',  'f',  'r',  't',  '\\', '\"', '/']
-          replacements = ['\b', '\n', '\f', '\r', '\t', '\\', '\"', '/']
-                   
+                     
 stmtParser :: Parser Stmt
 stmtParser = fmap Seqn (m_semiSep stmt1)
     where
-      stmt1 =     do { pos <- getPosition
-                     ; m_reserved "int"
+      stmt1 =     do { m_reserved "int"
                      ; v <- m_identifier
-                     ; do { asgn <- asgnParser v pos
-                          ; return (Seqn [LocalVar v pos, asgn])
-                          }
-                       <|> return (LocalVar v pos)
+                     ; return (LocalVar v)
                      }
               <|> do { pos <- getPosition
                      ; v <- m_identifier
@@ -151,46 +128,27 @@ stmtParser = fmap Seqn (m_semiSep stmt1)
               <|> do { m_reserved "if"
                      ; b <- m_parens exprParser
                      ; p <- m_braces stmtParser
-                     ; do { m_reserved "else"
-                          ; q <- m_braces stmtParser
-                          ; return (If b (SeqnE [p]) (SeqnE [q]))
-                          }
-                       <|> return (If b (SeqnE [p]) (Seqn []))
+                     ; m_reserved "else"
+                     ; q <- m_braces stmtParser
+                     ; return (If b p q)
                      }
               <|> do { m_reserved "while"
                      ; b <- m_parens exprParser
                      ; p <- m_braces stmtParser
-                     ; return (While b (SeqnE [p]))
+                     ; return (While b p)
                      }
               <|> do { m_reserved "for"
                      ; (d, a, e, i) <- m_parens forParser
                      ; p <- m_braces stmtParser
-                     ; return (Seqn [a, While e (SeqnE [p, i])])
+                     ; return (Seqn [LocalVar d, a, While e (Seqn [p, i])])
                      }
-              <|> do { m_reserved "printf"
-                     ; optional spaces
-                     ; char '('
-                     ; optional spaces
-                     ; s <- parseString
-                     ; optional spaces
-                     ; do { char ','
-                          ; optional spaces
-                          ; b <- m_commaSep exprParser
-                          ; char ')'
-                          ; optional spaces
-                          ; return (Print s b) 
-                          }
-                       <|> do { char ')'
-                              ; return (Print s [])
-                              }
+              <|> do { m_reserved "print"
+                     ; b <- m_parens exprParser
+                     ; return (Print b)
                      }
               <|> do { m_reserved "return"
-                     ; e <- exprParser
+                     ; e <- m_parens exprParser
                      ; return (Return e)
-                     }
-              <|> do { m_reserved "<br>"
-                     ; pos <- getPosition
-                     ; return (Break pos)
                      }
                   
 
@@ -202,20 +160,19 @@ mainParser = m_whiteSpace >> progParser <* eof
       progParser = fmap PSeq (m_semiSep prog1)
       prog1 =     do { try func
                      }
-              {-<|> do { try decl
+              <|> do { try decl
                      }
       decl =      do { pos <- getPosition
                      ; m_reserved "int"
                      ; v <- m_identifier
                      ; m_semi
                      ; return (GlobalVar v pos)
-                     }-}
-      func =      do { pos <- getPosition
-                     ; m_reserved "int"
+                     }
+      func =      do { m_reserved "int"
                      ; v <- m_identifier
                      ; e <- m_parens ( m_commaSep args )
                      ; p <- m_braces stmtParser
-                     ; return (Fun v e p pos)
+                     ; return (Fun v e p)
                      }
       args =      do { m_reserved "int"
                      ; v <- m_identifier
@@ -228,7 +185,9 @@ parseF inp = case parse mainParser "" inp of
              { Left err ->  do { print err
                                ; return (PSeq [])
                                }
-             ; Right ans -> return ans
+             ; Right ans -> do { print "parse successful"
+                               ; return ans
+                               }
              }
 
 parseFile :: String -> IO (Prog)

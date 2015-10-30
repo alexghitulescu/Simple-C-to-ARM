@@ -2,12 +2,10 @@
 module IAST (
     IProg (..),
     IStmt (..),
-    Value (..),
-    Extra (..)
+    Value (..)
 ) where
 
 import Text.Parsec.Pos
-import Data.Map
 import AST
 
 -- Imperative language
@@ -16,32 +14,24 @@ import AST
 -- Basic declarations for the language:
 
 data IProg            =  IGlobalVar Name
-                      |  IFun Name [Name] IStmt Extra
+                      |  IFun Name [Name] IStmt 
                       |  IPSeq [IProg]
                          deriving Show
 
-data IStmt            =  ILocalVar Name Extra 
-                      |  IAssign Name Value Extra
-                      |  IIf Value IStmt IStmt Extra
-                      |  IWhile [IStmt] Value IStmt Extra Extra
+data IStmt            =  ILocalVar Name 
+                      |  IAssign Name Value 
+                      |  IIf Value IStmt IStmt 
+                      |  IWhile [IStmt] Value IStmt 
                       |  ISeqn [IStmt]
-                      |  ISeqnE [IStmt] Extra
-                      |  IPrint String [Value] Extra
-                      |  IReturn Value Extra
-                      |  IApply Name [Value] Name Extra
-                      |  IApp Name Op Value Value Extra
-                      |  E_STMT
-                      |  IRead Name Extra
-                      |  IBreak SourcePos
+                      |  IPrint Value 
+                      |  IReturn Value 
+                      |  IApply Name [Value] Name
+                      |  IApp Name Op Value Value 
                          deriving Show
                          
-data Value            =  IVal Int 
+data Value            =  IVal Integer 
                       |  IVar Name                       
                       |  LastReturn
                       |  ILit Name
                       |  IComp Cond Value Value
                          deriving (Show, Ord, Eq)
-                         
-data Extra            =  Empt 
-                      |  I1 (Map Name Int) Int
-                         deriving (Show, Eq)
